@@ -72,13 +72,18 @@ export default function UsersView({ workers }: UsersViewProps) {
     setActionError(null);
 
     if (!name || !email) {
-      setActionError('Nombre y correo son obligatorios.');
+      setActionError('Nombre y correo/usuario son obligatorios.');
       return;
+    }
+
+    let finalEmail = email.trim().toLowerCase();
+    if (!finalEmail.includes('@')) {
+      finalEmail = `${finalEmail}@vanguardia.com`;
     }
 
     const payload = {
       name,
-      email: email.trim().toLowerCase(),
+      email: finalEmail,
       password: password || undefined,
       role,
       workerId: role === 'worker' && workerId ? workerId : null
@@ -99,7 +104,7 @@ export default function UsersView({ workers }: UsersViewProps) {
       }
       const created = await createUser({
         name,
-        email: email.trim().toLowerCase(),
+        email: finalEmail,
         password,
         role,
         workerId: role === 'worker' && workerId ? workerId : null
@@ -107,7 +112,7 @@ export default function UsersView({ workers }: UsersViewProps) {
       if (created) {
         setShowForm(false);
       } else {
-        setActionError('Error al registrar el usuario. El correo podría estar duplicado.');
+        setActionError('Error al registrar el usuario. El correo/usuario podría estar duplicado.');
       }
     }
   };
@@ -210,11 +215,11 @@ export default function UsersView({ workers }: UsersViewProps) {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1">Correo Electrónico *</label>
+              <label className="block text-xs font-semibold text-stone-700 mb-1">Correo Electrónico o Usuario *</label>
               <input
                 required
-                type="email"
-                placeholder="usuario@constructora.com"
+                type="text"
+                placeholder="correo@ejemplo.com o usuario"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 disabled={!!editingUser && !isMock}
