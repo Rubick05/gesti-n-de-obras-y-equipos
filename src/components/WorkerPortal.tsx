@@ -521,7 +521,7 @@ export default function WorkerPortal({
                             {/* Loan assignment info if in_use */}
                             {tool.status === 'en_uso' && activeLoan && borrower && (
                               <div className="bg-orange-50/50 p-2.5 rounded-lg border border-orange-100/70 text-[10.5px] space-y-1">
-                                <div className="text-[8.5px] text-orange-655 font-bold uppercase tracking-wider font-mono">Asignación Actual</div>
+                                <div className="text-[8.5px] text-orange-600 font-bold uppercase tracking-wider font-mono">Asignación Actual</div>
                                 <div className="text-slate-700">
                                   Llevado por: <span className="font-semibold text-slate-900">{borrower.name}</span>
                                 </div>
@@ -548,7 +548,7 @@ export default function WorkerPortal({
           <div className="animate-fadeIn space-y-6" id="worker-groups-tab">
             {groupsLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-orange-655" />
+                <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
                 <span className="text-xs text-slate-500 font-mono ml-2">Cargando grupos...</span>
               </div>
             ) : myGroups.length === 0 ? (
@@ -679,7 +679,7 @@ export default function WorkerPortal({
                                   {!isMe && member.phone && (
                                     <a 
                                       href={`tel:${member.phone}`}
-                                      className="p-1 text-slate-400 hover:text-orange-655 hover:bg-orange-50 rounded-md transition shrink-0"
+                                      className="p-1 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-md transition shrink-0"
                                       title={`Llamar a ${member.name}`}
                                     >
                                       <Phone className="h-3.5 w-3.5" />

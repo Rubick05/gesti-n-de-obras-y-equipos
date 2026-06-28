@@ -199,7 +199,7 @@ export default function TasksView({
                 onClick={() => onSelectProject(proj.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
                   selectedProjectId === proj.id 
-                    ? 'bg-orange-50 text-orange-655 font-bold border border-orange-200 shadow-xs' 
+                    ? 'bg-orange-50 text-orange-600 font-bold border border-orange-200 shadow-xs' 
                     : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
                 }`}
               >
@@ -264,7 +264,7 @@ export default function TasksView({
         <div className="bg-white border border-stone-300 rounded-xl p-5 shadow-2xs animate-fadeIn" id="task-form-panel">
           <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-100">
             <h3 className="font-bold text-stone-950 flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-orange-655" />
+              <Calendar className="h-5 w-5 text-orange-600" />
               {editingTask ? 'Editar Detalles de la Tarea' : 'Asignar Nueva Tarea en Obra'}
             </h3>
             <button
@@ -381,7 +381,7 @@ export default function TasksView({
             <div className="md:col-span-2 text-right">
               <button
                 type="submit"
-                className="bg-orange-655 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer"
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer"
               >
                 {editingTask ? 'Guardar Cambios' : 'Registrar Tarea'}
               </button>

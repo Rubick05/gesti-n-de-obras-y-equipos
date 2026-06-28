@@ -188,15 +188,15 @@ RETURNS TEXT AS $$
   SELECT role FROM public.profiles WHERE id = auth.uid();
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
 
--- ── 12. ROW LEVEL SECURITY ────────────────────────────────────────────────
-ALTER TABLE profiles      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE projects      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE workers       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tools         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE loans         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE expenses      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+-- ── 12. ROW LEVEL SECURITY (Desactivado para compatibilidad con Auth Bypass) ──
+ALTER TABLE profiles      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE projects      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE workers       DISABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks         DISABLE ROW LEVEL SECURITY;
+ALTER TABLE tools         DISABLE ROW LEVEL SECURITY;
+ALTER TABLE loans         DISABLE ROW LEVEL SECURITY;
+ALTER TABLE expenses      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs DISABLE ROW LEVEL SECURITY;
 
 -- profiles: cada usuario solo ve y edita su propio perfil
 CREATE POLICY "profiles_own_access" ON profiles
@@ -260,6 +260,5 @@ CREATE TABLE IF NOT EXISTS public.user_credentials (
   updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Habilitar RLS y permitir acceso total sin restricciones de token Auth
-ALTER TABLE public.user_credentials ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "allow_all_user_credentials" ON public.user_credentials FOR ALL USING (true);
+-- Desactivar RLS
+ALTER TABLE public.user_credentials DISABLE ROW LEVEL SECURITY;

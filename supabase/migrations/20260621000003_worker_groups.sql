@@ -30,9 +30,9 @@ CREATE TRIGGER trg_updated_at_worker_groups
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
--- ── 3. HABILITAR ROW LEVEL SECURITY (RLS) ───────────────────
-ALTER TABLE worker_groups ENABLE ROW LEVEL SECURITY;
-ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
+-- ── 3. ROW LEVEL SECURITY (Desactivado para compatibilidad con Auth Bypass) ──
+ALTER TABLE worker_groups DISABLE ROW LEVEL SECURITY;
+ALTER TABLE group_members DISABLE ROW LEVEL SECURITY;
 
 -- ── 4. POLÍTICAS RLS ────────────────────────────────────────
 

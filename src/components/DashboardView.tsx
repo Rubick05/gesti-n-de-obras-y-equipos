@@ -120,7 +120,7 @@ export default function DashboardView({
         >
           <div className="flex justify-between items-start">
             <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider block">Obras en Progreso</span>
-            <div className="p-2.5 bg-slate-50 rounded-xl text-slate-700 group-hover:bg-orange-50 group-hover:text-orange-655 transition">
+            <div className="p-2.5 bg-slate-50 rounded-xl text-slate-700 group-hover:bg-orange-50 group-hover:text-orange-600 transition">
               <Building2 className="h-5 w-5" />
             </div>
           </div>
@@ -138,7 +138,7 @@ export default function DashboardView({
         >
           <div className="flex justify-between items-start">
             <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider block">Trabajadores Activos</span>
-            <div className="p-2.5 bg-slate-50 rounded-xl text-slate-700 group-hover:bg-orange-50 group-hover:text-orange-655 transition">
+            <div className="p-2.5 bg-slate-50 rounded-xl text-slate-700 group-hover:bg-orange-50 group-hover:text-orange-600 transition">
               <Users className="h-5 w-5" />
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function DashboardView({
         >
           <div className="flex justify-between items-start">
             <span className="text-slate-500 text-xs font-semibold uppercase tracking-wider block">Equipos Prestados</span>
-            <div className="p-2.5 bg-slate-50 rounded-xl text-slate-700 group-hover:bg-orange-50 group-hover:text-orange-655 transition">
+            <div className="p-2.5 bg-slate-50 rounded-xl text-slate-700 group-hover:bg-orange-50 group-hover:text-orange-600 transition">
               <Wrench className="h-5 w-5" />
             </div>
           </div>
@@ -281,7 +281,7 @@ export default function DashboardView({
           <div className="p-4 flex-1 overflow-y-auto space-y-4 max-h-[420px] scrollbar-thin" id="dashboard-logs-list">
             {logs.slice(0, 6).map((log) => (
               <div key={log.id} className="relative pl-5 pb-3 border-l border-slate-200 last:pb-0" id={`log-item-${log.id}`}>
-                <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border border-white bg-orange-605 bg-orange-655"></div>
+                <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border border-white bg-orange-600"></div>
                 
                 <div className="flex flex-col space-y-0.5">
                   <span className="text-[9px] font-mono text-slate-450 font-semibold">
@@ -357,7 +357,7 @@ export default function DashboardView({
               <div className="bg-orange-600 text-white p-2.5 rounded-xl w-max mb-3.5 group-hover:scale-105 transition">
                 <Wrench className="h-4 w-4" />
               </div>
-              <h4 className="font-bold text-slate-950 text-sm mb-1 group-hover:text-orange-655 transition">Prestar una Herramienta</h4>
+              <h4 className="font-bold text-slate-950 text-sm mb-1 group-hover:text-orange-600 transition">Prestar una Herramienta</h4>
               <p className="text-xs text-slate-500 leading-relaxed">
                 Selecciona una herramienta disponible de la bodega, asígnasela a un trabajador y elige en qué obra se usará.
               </p>
@@ -375,7 +375,7 @@ export default function DashboardView({
               <div className="bg-slate-900 text-white p-2.5 rounded-xl w-max mb-3.5 group-hover:scale-105 transition">
                 <CheckSquare className="h-4 w-4" />
               </div>
-              <h4 className="font-bold text-slate-950 text-sm mb-1 group-hover:text-orange-655 transition">Crear Nueva Tarea</h4>
+              <h4 className="font-bold text-slate-950 text-sm mb-1 group-hover:text-orange-600 transition">Crear Nueva Tarea</h4>
               <p className="text-xs text-slate-500 leading-relaxed">
                 Asigna actividades pendientes al personal de tus obras, define fechas límite y marca la urgencia de cada una.
               </p>

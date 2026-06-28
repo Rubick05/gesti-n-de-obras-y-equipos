@@ -141,7 +141,7 @@ export default function TeamView({
     'bg-stone-900 border-stone-850 text-stone-100',
     'bg-amber-500 border-amber-600 text-stone-950',
     'bg-zinc-800 border-zinc-900 text-zinc-100',
-    'bg-orange-655 border-orange-700 text-white',
+    'bg-orange-600 border-orange-700 text-white',
     'bg-stone-700 border-stone-800 text-stone-50'
   ];
 
@@ -250,7 +250,7 @@ export default function TeamView({
         <div className="bg-white border border-stone-300 rounded-xl p-5 shadow-2xs animate-fadeIn" id="worker-form-container">
           <div className="flex justify-between items-center mb-4 pb-2 border-b border-stone-100">
             <h3 className="font-bold text-stone-950 flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-orange-655" />
+              <UserPlus className="h-5 w-5 text-orange-600" />
               {editingWorker ? 'Editar Datos del Trabajador' : 'Registrar Nuevo Trabajador'}
             </h3>
             <button
@@ -341,7 +341,7 @@ export default function TeamView({
             <div className="md:col-span-3 text-right">
               <button
                 type="submit"
-                className="bg-orange-655 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer"
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer"
                 id="btn-save-worker"
               >
                 {editingWorker ? 'Guardar Datos' : 'Registrar Trabajador'}

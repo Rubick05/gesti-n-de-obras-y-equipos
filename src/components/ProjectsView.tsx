@@ -234,7 +234,7 @@ export default function ProjectsView({
         <div className="bg-white rounded-xl border border-stone-300 p-6 space-y-4 shadow-2xs animate-fadeIn" id="project-form-container">
           <div className="flex justify-between items-center mb-2 pb-2 border-b border-stone-100">
             <h3 className="font-bold text-stone-950 flex items-center gap-2">
-              <Briefcase className="h-5 w-5 text-orange-655" />
+              <Briefcase className="h-5 w-5 text-orange-600" />
               {editingProject ? 'Editar Información del Proyecto u Obra' : 'Registrar Nuevo Proyecto de Construcción'}
             </h3>
             <button 
@@ -353,7 +353,7 @@ export default function ProjectsView({
             <div className="md:col-span-3 text-right">
               <button
                 type="submit"
-                className="bg-orange-655 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer"
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer"
                 id="btn-save-project"
               >
                 {editingProject ? 'Guardar Cambios' : 'Registrar Proyecto'}

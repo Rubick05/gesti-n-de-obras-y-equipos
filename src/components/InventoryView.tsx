@@ -580,7 +580,7 @@ export default function InventoryView({
                   </button>
                   <button
                     type="submit"
-                    className="bg-orange-655 hover:bg-orange-700 text-white font-bold px-5 py-2 text-xs rounded-lg transition shadow-xs cursor-pointer"
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-5 py-2 text-xs rounded-lg transition shadow-xs cursor-pointer"
                   >
                     {editingTool ? 'Guardar Información' : 'Registrar Equipo'}
                   </button>
@@ -668,7 +668,7 @@ export default function InventoryView({
                   </button>
                   <button
                     type="submit"
-                    className="bg-orange-655 hover:bg-orange-600 text-white font-bold px-5 py-2 text-xs rounded-lg transition shadow-sm"
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-5 py-2 text-xs rounded-lg transition shadow-sm"
                   >
                     Confirmar Préstamo
                   </button>
@@ -776,7 +776,7 @@ export default function InventoryView({
                       {/* INFORMACIÓN DEL PRÉSTAMO ACTIVO */}
                       {activeLoan && borrower && (
                         <div className="bg-orange-50/70 p-3 rounded-lg border border-orange-100 mt-4 text-xs space-y-1" id={`tool-checkout-info-${tool.id}`}>
-                          <div className="text-[9px] text-orange-655 font-bold uppercase tracking-wider">Detalles del Préstamo</div>
+                          <div className="text-[9px] text-orange-600 font-bold uppercase tracking-wider">Detalles del Préstamo</div>
                           <div className="flex items-center gap-1.5 text-slate-700">
                             <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                             <span>Prestado a:</span>
@@ -921,7 +921,7 @@ export default function InventoryView({
                         ) : (
                           <div className="text-slate-850 flex flex-col">
                             <span className="font-semibold">Plazo: {loan.expectedReturnDate}</span>
-                            <span className="text-[9.5px] font-sans font-bold text-orange-655">(Aún en obra)</span>
+                            <span className="text-[9.5px] font-sans font-bold text-orange-600">(Aún en obra)</span>
                           </div>
                         )}
                       </td>
