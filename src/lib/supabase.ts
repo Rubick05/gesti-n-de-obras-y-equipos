@@ -1012,6 +1012,19 @@ const realSupabase = createClient(
   }
 );
 
+const realSignUpClient = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key',
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    },
+  }
+);
+
 const mockSupabase = new MockSupabaseClient() as any;
 
 export const supabase = isMockMode ? mockSupabase : realSupabase;
+export const supabaseSignUpClient = isMockMode ? mockSupabase : realSignUpClient;

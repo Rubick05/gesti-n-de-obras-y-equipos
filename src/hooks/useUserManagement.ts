@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, DbUserCredential } from '../lib/supabase';
-import { createClient } from '@supabase/supabase-js';
+import { supabase, supabaseSignUpClient, DbUserCredential } from '../lib/supabase';
 
 export interface UserAccount {
   id: string;
@@ -105,20 +104,9 @@ export function useUserManagement() {
         setUsers(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
         return created;
       } else {
-        // En real mode, usamos un cliente temporal de Supabase sin persistencia
-        // para registrar el nuevo usuario sin desloguear al admin activo.
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false
-          }
-        });
-
-        const { data: authData, error: authErr } = await tempClient.auth.signUp({
+        // En real mode, usamos el cliente de registro sin persistencia
+        // para registrar al nuevo usuario sin desloguear al admin activo.
+        const { data: authData, error: authErr } = await supabaseSignUpClient.auth.signUp({
           email: account.email,
           password: account.password || '123456',
           options: {
