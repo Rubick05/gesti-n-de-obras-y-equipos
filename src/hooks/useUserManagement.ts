@@ -136,7 +136,7 @@ export function useUserManagement() {
       }
     } catch (err: any) {
       setError(err.message);
-      return null;
+      throw err;
     }
   };
 

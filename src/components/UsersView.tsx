@@ -102,17 +102,25 @@ export default function UsersView({ workers }: UsersViewProps) {
         setActionError('La contraseña es obligatoria para nuevos usuarios.');
         return;
       }
-      const created = await createUser({
-        name,
-        email: finalEmail,
-        password,
-        role,
-        workerId: role === 'worker' && workerId ? workerId : null
-      });
-      if (created) {
-        setShowForm(false);
-      } else {
-        setActionError('Error al registrar el usuario. El correo/usuario podría estar duplicado.');
+      try {
+        const created = await createUser({
+          name,
+          email: finalEmail,
+          password,
+          role,
+          workerId: role === 'worker' && workerId ? workerId : null
+        });
+        if (created) {
+          setShowForm(false);
+        } else {
+          setActionError('Error al registrar el usuario. El correo/usuario podría estar duplicado.');
+        }
+      } catch (err: any) {
+        if (err.status === 429 || (err.message && err.message.toLowerCase().includes('rate limit')) || (err.message && err.message.toLowerCase().includes('limit exceeded'))) {
+          setActionError('Límite de registros de Supabase superado (Error 429). Por favor, ve a Supabase Dashboard -> Settings -> Auth y aumenta el "Signup Rate Limit" o espera unos minutos.');
+        } else {
+          setActionError(err.message || 'Error al registrar el usuario. Verifica los campos.');
+        }
       }
     }
   };
