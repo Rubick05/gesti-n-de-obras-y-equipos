@@ -202,6 +202,9 @@ ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "profiles_own_access" ON profiles
   FOR ALL USING (id = auth.uid());
 
+CREATE POLICY "profiles_admin_all" ON public.profiles
+  FOR ALL USING (public.get_my_role() = 'admin');
+
 -- projects: admin total, worker lectura
 CREATE POLICY "projects_admin_all"   ON projects FOR ALL    USING (get_my_role() = 'admin');
 CREATE POLICY "projects_worker_read" ON projects FOR SELECT USING (get_my_role() = 'worker');

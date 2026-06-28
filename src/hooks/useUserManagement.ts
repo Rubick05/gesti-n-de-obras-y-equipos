@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, DbUserCredential } from '../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 export interface UserAccount {
   id: string;
@@ -104,8 +105,46 @@ export function useUserManagement() {
         setUsers(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
         return created;
       } else {
-        // En real mode, explicamos que requiere Supabase Auth Admin API
-        throw new Error('La creación de usuarios reales en Supabase requiere usar el panel de Authentication o una Edge Function.');
+        // En real mode, usamos un cliente temporal de Supabase sin persistencia
+        // para registrar el nuevo usuario sin desloguear al admin activo.
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+          }
+        });
+
+        const { data: authData, error: authErr } = await tempClient.auth.signUp({
+          email: account.email,
+          password: account.password || '123456',
+          options: {
+            data: {
+              name: account.name,
+              role: account.role,
+              worker_id: account.workerId,
+              avatar_color: '#0284c7'
+            }
+          }
+        });
+
+        if (authErr) throw authErr;
+        if (!authData.user) throw new Error('No se pudo registrar el usuario en Supabase Auth.');
+
+        const created: UserAccount = {
+          id: authData.user.id,
+          email: authData.user.email || account.email,
+          name: account.name,
+          role: account.role,
+          workerId: account.workerId,
+          createdAt: authData.user.created_at
+        };
+
+        setUsers(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+        return created;
       }
     } catch (err: any) {
       setError(err.message);
@@ -173,8 +212,18 @@ export function useUserManagement() {
         setUsers(prev => prev.filter(u => u.id !== id));
         return true;
       } else {
-        // En real mode, requiere Auth Admin API
-        throw new Error('La eliminación de usuarios reales en Supabase requiere usar el panel de Authentication o una Edge Function.');
+        // En real mode, borramos el registro de la tabla de public.profiles.
+        // Dado que no se cuenta con los permisos de servicio de Supabase Auth en el front,
+        // remover su perfil revoca automáticamente su acceso al portal de la aplicación.
+        const { error: err } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', id);
+
+        if (err) throw err;
+
+        setUsers(prev => prev.filter(u => u.id !== id));
+        return true;
       }
     } catch (err: any) {
       setError(err.message);
