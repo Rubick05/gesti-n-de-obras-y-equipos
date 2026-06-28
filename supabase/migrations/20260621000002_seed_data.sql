@@ -89,3 +89,22 @@ INSERT INTO activity_logs (entity_type, action, entity_name, details) VALUES
   ('project', 'Obra Registrada', 'Planta de Tratamiento Clayton', 'Código: PTC-09. Estado: Completado'),
   ('worker',  'Personal Registrado', 'Carlos Mendoza', 'Puesto: Supervisor de Obra'),
   ('worker',  'Personal Registrado', 'Ana Ríos', 'Puesto: Coordinadora de Seguridad');
+
+-- ── Credenciales de Usuarios iniciales ──────────────────────────────────────
+INSERT INTO user_credentials (email, password, name, role, worker_id, avatar_color)
+VALUES ('admin@vanguardia.com', 'admin123', 'Admin Principal', 'admin', NULL, '#ea580c')
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO user_credentials (email, password, name, role, worker_id, avatar_color)
+VALUES ('admin', 'admin', 'Admin Principal', 'admin', NULL, '#ea580c')
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO user_credentials (email, password, name, role, worker_id, avatar_color)
+SELECT 'carlos.mendoza@constructora-vanguardia.com', 'carlos123', 'Carlos Mendoza', 'worker', id, '#0284c7'
+FROM workers WHERE email='carlos.mendoza@constructora-vanguardia.com'
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO user_credentials (email, password, name, role, worker_id, avatar_color)
+SELECT 'carlos', 'carlos123', 'Carlos Mendoza', 'worker', id, '#0284c7'
+FROM workers WHERE email='carlos.mendoza@constructora-vanguardia.com'
+ON CONFLICT (email) DO NOTHING;

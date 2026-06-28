@@ -31,111 +31,105 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<DbProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load profile from Supabase
-  const loadProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (error) {
-      console.error('[AuthContext] Error loading profile:', error.message);
-      return null;
-    }
-    return data as DbProfile;
-  }, []);
-
   // Bootstrap session on mount
   useEffect(() => {
-    let mounted = true;
-
-    const init = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      if (!mounted) return;
-
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-
-      if (currentSession?.user) {
-        const p = await loadProfile(currentSession.user.id);
-        if (mounted) setProfile(p);
+    const saved = localStorage.getItem('cv_session_profile');
+    if (saved) {
+      try {
+        const p = JSON.parse(saved);
+        setProfile(p);
+        setUser({ id: p.id, email: p.email } as any);
+        setSession({ user: { id: p.id } } as any);
+      } catch (e) {
+        console.error('[AuthContext] Error loading profile from storage:', e);
       }
-
-      setLoading(false);
-    };
-
-    init();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        if (!mounted) return;
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-
-        if (newSession?.user) {
-          const p = await loadProfile(newSession.user.id);
-          if (mounted) setProfile(p);
-        } else {
-          setProfile(null);
-        }
-
-        setLoading(false);
-      }
-    );
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [loadProfile]);
+    }
+    setLoading(false);
+  }, []);
 
   // Login
-  const login = async (email: string, password: string): Promise<{ error: string | null }> => {
+  const login = async (emailInput: string, passwordInput: string): Promise<{ error: string | null }> => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('user_credentials')
+        .select('*')
+        .eq('email', emailInput.trim().toLowerCase())
+        .eq('password', passwordInput)
+        .maybeSingle();
 
-    if (error) {
-      // Human-readable Spanish error messages
-      if (error.message.includes('Invalid login credentials')) {
-        return { error: 'Correo o contraseña incorrectos. Verifica tus datos e intenta nuevamente.' };
+      setLoading(false);
+
+      if (error) {
+        console.error('[AuthContext] Login database error:', error.message);
+        return { error: 'Error de conexión con la base de datos.' };
       }
-      if (error.message.includes('Email not confirmed')) {
-        return { error: 'Tu correo no ha sido confirmado. Revisa tu bandeja de entrada.' };
+
+      if (!data) {
+        return { error: 'Correo, usuario o contraseña incorrectos. Intenta nuevamente.' };
       }
-      return { error: `Error de acceso: ${error.message}` };
+
+      const profileData: DbProfile = {
+        id: data.id,
+        name: data.name,
+        role: data.role as 'admin' | 'worker',
+        avatar_color: data.avatar_color || '#ea580c',
+        worker_id: data.worker_id,
+        created_at: data.created_at,
+        updated_at: data.updated_at
+      };
+
+      localStorage.setItem('cv_session_profile', JSON.stringify(profileData));
+      
+      setProfile(profileData);
+      setUser({ id: data.id, email: data.email } as any);
+      setSession({ user: { id: data.id } } as any);
+
+      return { error: null };
+    } catch (err: any) {
+      setLoading(false);
+      return { error: `Error inesperado: ${err.message}` };
     }
-
-    return { error: null };
   };
 
   // Logout
   const logout = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
+    localStorage.removeItem('cv_session_profile');
     setProfile(null);
+    setUser(null);
+    setSession(null);
   };
 
   // Update profile
   const updateProfile = async (
     updates: Partial<Pick<DbProfile, 'name' | 'avatar_color'>>
   ): Promise<{ error: string | null }> => {
-    if (!user) return { error: 'No hay sesión activa.' };
+    if (!profile) return { error: 'No hay sesión activa.' };
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', user.id);
+    try {
+      const { error } = await supabase
+        .from('user_credentials')
+        .update({
+          name: updates.name,
+          avatar_color: updates.avatar_color,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', profile.id);
 
-    if (error) return { error: error.message };
+      if (error) return { error: error.message };
 
-    // Reload profile locally
-    const p = await loadProfile(user.id);
-    setProfile(p);
-    return { error: null };
+      const updatedProfile = {
+        ...profile,
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+
+      localStorage.setItem('cv_session_profile', JSON.stringify(updatedProfile));
+      setProfile(updatedProfile);
+      return { error: null };
+    } catch (err: any) {
+      return { error: err.message };
+    }
   };
 
   const value: AuthContextValue = {

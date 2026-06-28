@@ -246,3 +246,20 @@ CREATE INDEX idx_loans_status     ON loans(status);
 CREATE INDEX idx_expenses_project ON expenses(project_id);
 CREATE INDEX idx_logs_type        ON activity_logs(entity_type);
 CREATE INDEX idx_logs_date        ON activity_logs(created_at DESC);
+
+-- ── 14. TABLA: user_credentials (autenticación personalizada sin Supabase Auth) ──
+CREATE TABLE IF NOT EXISTS public.user_credentials (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email        TEXT UNIQUE NOT NULL,
+  password     TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  role         TEXT NOT NULL CHECK (role IN ('admin', 'worker')),
+  worker_id    UUID REFERENCES public.workers(id) ON DELETE SET NULL,
+  avatar_color TEXT NOT NULL DEFAULT '#ea580c',
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Habilitar RLS y permitir acceso total sin restricciones de token Auth
+ALTER TABLE public.user_credentials ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow_all_user_credentials" ON public.user_credentials FOR ALL USING (true);
