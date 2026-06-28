@@ -93,10 +93,6 @@ export default function UsersView({ workers }: UsersViewProps) {
         setActionError('Error al actualizar el usuario. Verifica los campos.');
       }
     } else {
-      if (!isMock) {
-        setActionError('No se pueden crear usuarios reales en Supabase desde esta interfaz.');
-        return;
-      }
       if (!password) {
         setActionError('La contraseña es obligatoria para nuevos usuarios.');
         return;
@@ -146,15 +142,13 @@ export default function UsersView({ workers }: UsersViewProps) {
             Administra las cuentas de login, asigna roles de sistema y gestiona las contraseñas de los trabajadores y administradores.
           </p>
         </div>
-        {isMock && (
-          <button
-            onClick={handleOpenAdd}
-            className="bg-orange-655 hover:bg-orange-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg flex items-center gap-1.5 transition shadow-xs cursor-pointer"
-            id="btn-new-user"
-          >
-            <Plus className="h-4 w-4" /> Registrar Usuario
-          </button>
-        )}
+        <button
+          onClick={handleOpenAdd}
+          className="bg-orange-655 hover:bg-orange-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+          id="btn-new-user"
+        >
+          <Plus className="h-4 w-4" /> Registrar Usuario
+        </button>
       </div>
 
       {/* ALERTA INFORMATIVA MODO REAL VS MOCK */}
@@ -241,14 +235,14 @@ export default function UsersView({ workers }: UsersViewProps) {
                   placeholder="••••••••"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  disabled={!isMock}
+                  disabled={!isMock && !!editingUser}
                   className="w-full bg-white border border-stone-250 rounded-lg pl-3 pr-10 py-2 text-sm focus:outline-hidden focus:border-orange-500 disabled:bg-stone-50 disabled:text-stone-400 text-stone-900"
                   id="input-user-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowFormPassword(v => !v)}
-                  disabled={!isMock}
+                  disabled={!isMock && !!editingUser}
                   className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-600 disabled:opacity-40"
                 >
                   {showFormPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -373,7 +367,7 @@ export default function UsersView({ workers }: UsersViewProps) {
                       >
                         <Edit3 className="h-3.5 w-3.5" />
                       </button>
-                      {isMock && user.email !== 'admin@vanguardia.com' && (
+                      {user.email !== 'admin@vanguardia.com' && (
                         <button
                           onClick={() => handleDelete(user.id, user.name)}
                           className="p-1 text-stone-400 hover:text-red-600 rounded transition hover:bg-red-50"
