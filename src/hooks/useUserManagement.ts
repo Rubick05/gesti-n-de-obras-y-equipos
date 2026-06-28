@@ -88,15 +88,19 @@ export function useUserManagement() {
 
   const updateUser = async (id: string, updates: Partial<Omit<UserAccount, 'id' | 'createdAt'>>): Promise<boolean> => {
     try {
+      const updateData: any = {
+        email: updates.email,
+        name: updates.name,
+        role: updates.role,
+        worker_id: updates.workerId,
+      };
+      if (updates.password) {
+        updateData.password = updates.password;
+      }
+
       const { error: err } = await supabase
         .from('user_credentials')
-        .update({
-          email: updates.email,
-          password: updates.password,
-          name: updates.name,
-          role: updates.role,
-          worker_id: updates.workerId,
-        })
+        .update(updateData)
         .eq('id', id);
 
       if (err) throw err;

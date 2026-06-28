@@ -227,7 +227,6 @@ export default function UsersView({ workers }: UsersViewProps) {
                 placeholder="correo@ejemplo.com o usuario"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                disabled={!!editingUser && !isMock}
                 className="w-full bg-white border border-stone-250 rounded-lg px-3 py-2 text-sm focus:outline-hidden focus:border-orange-500 disabled:bg-stone-50 disabled:text-stone-400 text-stone-900"
                 id="input-user-email"
               />
@@ -245,14 +244,12 @@ export default function UsersView({ workers }: UsersViewProps) {
                   placeholder="••••••••"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  disabled={!isMock && !!editingUser}
                   className="w-full bg-white border border-stone-250 rounded-lg pl-3 pr-10 py-2 text-sm focus:outline-hidden focus:border-orange-500 disabled:bg-stone-50 disabled:text-stone-400 text-stone-900"
                   id="input-user-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowFormPassword(v => !v)}
-                  disabled={!isMock && !!editingUser}
                   className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-600 disabled:opacity-40"
                 >
                   {showFormPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
