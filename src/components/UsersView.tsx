@@ -149,7 +149,7 @@ export default function UsersView({ workers }: UsersViewProps) {
         </div>
         <button
           onClick={handleOpenAdd}
-          className="bg-orange-655 hover:bg-orange-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+          className="bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg flex items-center gap-1.5 transition shadow-xs cursor-pointer"
           id="btn-new-user"
         >
           <Plus className="h-4 w-4" /> Registrar Usuario
@@ -182,7 +182,7 @@ export default function UsersView({ workers }: UsersViewProps) {
         <div className="bg-white rounded-xl border border-stone-300 p-6 space-y-4 shadow-2xs animate-fadeIn" id="user-form-container">
           <div className="flex justify-between items-center mb-2 pb-2 border-b border-stone-100">
             <h3 className="font-bold text-stone-950 flex items-center gap-2">
-              <Shield className="h-5 w-5 text-orange-655" />
+              <Shield className="h-5 w-5 text-orange-600" />
               {editingUser ? 'Editar Cuenta de Usuario' : 'Registrar Nuevo Usuario'}
             </h3>
             <button 
@@ -291,7 +291,7 @@ export default function UsersView({ workers }: UsersViewProps) {
             <div className={`text-right ${role === 'worker' ? 'md:col-span-3' : 'md:col-span-2'}`}>
               <button
                 type="submit"
-                className="bg-orange-655 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer mt-2"
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer mt-2"
                 id="btn-submit-user"
               >
                 {editingUser ? 'Guardar Cambios' : 'Registrar Cuenta'}

@@ -44,16 +44,7 @@ export default function LoginView() {
     if (loginError) setError(loginError);
   };
 
-  const fillDemo = (type: 'admin' | 'worker') => {
-    if (type === 'admin') {
-      setEmail('admin@vanguardia.com');
-      setPassword('admin123');
-    } else {
-      setEmail('carlos.mendoza@constructora-vanguardia.com');
-      setPassword('carlos123');
-    }
-    setError(null);
-  };
+
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden" id="login-page">
@@ -170,46 +161,6 @@ export default function LoginView() {
               )}
             </button>
           </form>
-
-          {/* Divisor */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-slate-800" />
-            <span className="text-[10px] font-mono text-slate-600 uppercase tracking-widest">Accesos Demo</span>
-            <div className="flex-1 h-px bg-slate-800" />
-          </div>
-
-          {/* Demo buttons */}
-          <div className="grid grid-cols-2 gap-3" id="demo-access-buttons">
-            <button
-              type="button"
-              onClick={() => fillDemo('admin')}
-              className="flex items-center gap-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-orange-600/50 text-slate-300 hover:text-white rounded-xl px-3.5 py-2.5 text-xs font-semibold transition group"
-              id="btn-demo-admin"
-            >
-              <div className="w-7 h-7 bg-orange-600/15 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-orange-600/25 transition">
-                <Shield className="h-3.5 w-3.5 text-orange-500" />
-              </div>
-              <div className="text-left">
-                <div className="text-[10px] text-slate-500 font-mono leading-none">Administrador</div>
-                <div className="text-white text-[11px] font-bold mt-0.5">Admin Principal</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fillDemo('worker')}
-              className="flex items-center gap-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-sky-600/50 text-slate-300 hover:text-white rounded-xl px-3.5 py-2.5 text-xs font-semibold transition group"
-              id="btn-demo-worker"
-            >
-              <div className="w-7 h-7 bg-sky-600/15 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-sky-600/25 transition">
-                <Users className="h-3.5 w-3.5 text-sky-400" />
-              </div>
-              <div className="text-left">
-                <div className="text-[10px] text-slate-500 font-mono leading-none">Trabajador</div>
-                <div className="text-white text-[11px] font-bold mt-0.5">Carlos Mendoza</div>
-              </div>
-            </button>
-          </div>
         </div>
 
         {/* Features abajo */}
