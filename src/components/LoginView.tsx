@@ -23,19 +23,13 @@ export default function LoginView() {
     let loginEmail = email.trim().toLowerCase();
     let loginPassword = password;
 
-    // Traducir usuario sin dominio
-    if (!loginEmail.includes('@')) {
-      if (loginEmail === 'admin') {
-        loginEmail = 'admin@vanguardia.com';
-      } else {
-        loginEmail = `${loginEmail}@vanguardia.com`;
-      }
-    }
-
     let { error: loginError } = await login(loginEmail, loginPassword);
 
     // Fallback para admin/admin123 si falla
     if (loginError && loginEmail === 'admin@vanguardia.com' && loginPassword === 'admin') {
+      const retryResult = await login(loginEmail, 'admin123');
+      loginError = retryResult.error;
+    } else if (loginError && loginEmail === 'admin' && loginPassword === 'admin') {
       const retryResult = await login(loginEmail, 'admin123');
       loginError = retryResult.error;
     }

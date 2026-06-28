@@ -77,9 +77,6 @@ export default function UsersView({ workers }: UsersViewProps) {
     }
 
     let finalEmail = email.trim().toLowerCase();
-    if (!finalEmail.includes('@')) {
-      finalEmail = `${finalEmail}@vanguardia.com`;
-    }
 
     const payload = {
       name,
