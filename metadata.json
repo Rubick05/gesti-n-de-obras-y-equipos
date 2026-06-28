@@ -1,0 +1,6 @@
+{
+  "name": "Gestión de Obras y Equipos",
+  "description": "Plataforma interactiva para la gestión de proyectos de construcción: control de tareas, asignación de equipos de trabajo, inventario de herramientas y seguimiento de préstamos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
