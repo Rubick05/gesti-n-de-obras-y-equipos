@@ -12,6 +12,11 @@ import WorkerPortal from './components/WorkerPortal';
 import UsersView from './components/UsersView';
 import { Loader2 } from 'lucide-react';
 
+import TutorialOverlay from './components/TutorialOverlay';
+import { useTutorial } from './hooks/useTutorial';
+import VoiceAssistant from './components/VoiceAssistant';
+import { useVoiceAssistant } from './hooks/useVoiceAssistant';
+
 // ── Hooks de Supabase ──────────────────────────────────────────────────────
 import { useProjects } from './hooks/useProjects';
 import { useWorkers } from './hooks/useWorkers';
@@ -146,56 +151,98 @@ function AdminApp() {
     addLog('expense', 'Gasto Eliminado', 'Presupuesto', 'Registro eliminado', profile?.id);
   };
 
+  const {
+    state: tutorialState,
+    startTutorial,
+    nextStep,
+    prevStep,
+    skipTutorial,
+    openPicker,
+    closePicker
+  } = useTutorial((view) => setActiveView(view as AdminView));
+
+  const voiceAssistant = useVoiceAssistant({
+    onAddProject: handleAddProject,
+    onAddWorker: handleAddWorker,
+    onAddTask: handleAddTask,
+    onAddTool: handleAddTool,
+    onAddExpense: handleAddExpense,
+    onNavigate: (view) => setActiveView(view as AdminView),
+    projects,
+    workers,
+    tasks,
+    role: 'admin',
+  });
+
   return (
-    <Layout activeView={activeView} onNavigate={setActiveView}>
-      {activeView === 'dashboard' && (
-        <DashboardView
-          projects={projects} workers={workers} tasks={tasks}
-          tools={tools} loans={loans} logs={logs}
-          onNavigate={setActiveView} onSelectProject={setSelectedProjectId}
-          expenses={expenses}
-        />
-      )}
-      {activeView === 'projects' && (
-        <ProjectsView
-          projects={projects} tasks={tasks} tools={tools}
-          loans={loans} workers={workers}
-          onAddProject={handleAddProject} onUpdateProject={handleUpdateProject}
-          selectedProjectId={selectedProjectId} onSelectProject={setSelectedProjectId}
-        />
-      )}
-      {activeView === 'tasks' && (
-        <TasksView
-          tasks={tasks} projects={projects} workers={workers}
-          onAddTask={handleAddTask} onUpdateTask={handleUpdateTask}
-          onDeleteTask={handleDeleteTask}
-          selectedProjectId={selectedProjectId} onSelectProject={setSelectedProjectId}
-        />
-      )}
-      {activeView === 'team' && (
-        <TeamView
-          workers={workers} tasks={tasks}
-          onAddWorker={handleAddWorker} onUpdateWorker={handleUpdateWorker}
-          onDeleteWorker={handleDeleteWorker}
-        />
-      )}
-      {activeView === 'inventory' && (
-        <InventoryView
-          tools={tools} loans={loans} workers={workers} projects={projects}
-          onAddTool={handleAddTool} onUpdateTool={handleUpdateTool} onDeleteTool={handleDeleteTool}
-          onCheckoutTool={handleCheckoutTool} onCheckinTool={handleCheckinTool}
-        />
-      )}
-      {activeView === 'budget' && (
-        <BudgetView
-          projects={projects} expenses={expenses}
-          onAddExpense={handleAddExpense} onDeleteExpense={handleDeleteExpense}
-        />
-      )}
-      {activeView === 'users' && (
-        <UsersView workers={workers} />
-      )}
-    </Layout>
+    <>
+      <Layout activeView={activeView} onNavigate={setActiveView}>
+        {activeView === 'dashboard' && (
+          <DashboardView
+            projects={projects} workers={workers} tasks={tasks}
+            tools={tools} loans={loans} logs={logs}
+            onNavigate={setActiveView} onSelectProject={setSelectedProjectId}
+            expenses={expenses}
+          />
+        )}
+        {activeView === 'projects' && (
+          <ProjectsView
+            projects={projects} tasks={tasks} tools={tools}
+            loans={loans} workers={workers}
+            onAddProject={handleAddProject} onUpdateProject={handleUpdateProject}
+            selectedProjectId={selectedProjectId} onSelectProject={setSelectedProjectId}
+          />
+        )}
+        {activeView === 'tasks' && (
+          <TasksView
+            tasks={tasks} projects={projects} workers={workers}
+            onAddTask={handleAddTask} onUpdateTask={handleUpdateTask}
+            onDeleteTask={handleDeleteTask}
+            selectedProjectId={selectedProjectId} onSelectProject={setSelectedProjectId}
+          />
+        )}
+        {activeView === 'team' && (
+          <TeamView
+            workers={workers} tasks={tasks}
+            onAddWorker={handleAddWorker} onUpdateWorker={handleUpdateWorker}
+            onDeleteWorker={handleDeleteWorker}
+          />
+        )}
+        {activeView === 'inventory' && (
+          <InventoryView
+            tools={tools} loans={loans} workers={workers} projects={projects}
+            onAddTool={handleAddTool} onUpdateTool={handleUpdateTool} onDeleteTool={handleDeleteTool}
+            onCheckoutTool={handleCheckoutTool} onCheckinTool={handleCheckinTool}
+          />
+        )}
+        {activeView === 'budget' && (
+          <BudgetView
+            projects={projects} expenses={expenses}
+            onAddExpense={handleAddExpense} onDeleteExpense={handleDeleteExpense}
+          />
+        )}
+        {activeView === 'users' && (
+          <UsersView workers={workers} />
+        )}
+      </Layout>
+      <TutorialOverlay
+        tutorialState={tutorialState}
+        onNext={nextStep}
+        onPrev={prevStep}
+        onSkip={skipTutorial}
+        onOpenPicker={openPicker}
+        onClosePicker={closePicker}
+        onStartTutorial={startTutorial}
+        role="admin"
+      />
+      <VoiceAssistant
+        state={voiceAssistant.state}
+        onClose={voiceAssistant.close}
+        onToggleListening={voiceAssistant.toggleListening}
+        onSubmitText={voiceAssistant.submitText}
+        onOpen={voiceAssistant.open}
+      />
+    </>
   );
 }
 
@@ -212,17 +259,69 @@ function WorkerApp() {
 
   const myWorkerData = workers.find(w => w.id === workerId) ?? null;
 
+  const [workerTab, setWorkerTab] = useState<'tasks' | 'profile' | 'groups' | 'inventory'>('tasks');
+
+  const {
+    state: tutorialState,
+    startTutorial,
+    nextStep,
+    prevStep,
+    skipTutorial,
+    openPicker,
+    closePicker
+  } = useTutorial((view) => {
+    if (view === 'tasks' || view === 'profile' || view === 'groups' || view === 'inventory') {
+      setWorkerTab(view);
+    }
+  });
+
+  const voiceAssistant = useVoiceAssistant({
+    onUpdateWorker: updateWorker,
+    onUpdateTaskStatus: updateTaskStatus,
+    onNavigate: (view) => {
+      if (view === 'tasks' || view === 'profile' || view === 'groups' || view === 'inventory') {
+        setWorkerTab(view);
+      }
+    },
+    tasks,
+    projects,
+    workers,
+    currentWorkerId: workerId,
+    role: 'worker',
+  });
+
   return (
-    <WorkerPortal
-      myTasks={tasks}
-      projects={projects}
-      workers={workers}
-      myWorkerData={myWorkerData}
-      onUpdateTaskStatus={updateTaskStatus}
-      onUpdateWorker={updateWorker}
-      tools={tools}
-      loans={loans}
-    />
+    <>
+      <WorkerPortal
+        myTasks={tasks}
+        projects={projects}
+        workers={workers}
+        myWorkerData={myWorkerData}
+        onUpdateTaskStatus={updateTaskStatus}
+        onUpdateWorker={updateWorker}
+        tools={tools}
+        loans={loans}
+        activeTab={workerTab}
+        onTabChange={setWorkerTab}
+      />
+      <TutorialOverlay
+        tutorialState={tutorialState}
+        onNext={nextStep}
+        onPrev={prevStep}
+        onSkip={skipTutorial}
+        onOpenPicker={openPicker}
+        onClosePicker={closePicker}
+        onStartTutorial={startTutorial}
+        role="worker"
+      />
+      <VoiceAssistant
+        state={voiceAssistant.state}
+        onClose={voiceAssistant.close}
+        onToggleListening={voiceAssistant.toggleListening}
+        onSubmitText={voiceAssistant.submitText}
+        onOpen={voiceAssistant.open}
+      />
+    </>
   );
 }
 

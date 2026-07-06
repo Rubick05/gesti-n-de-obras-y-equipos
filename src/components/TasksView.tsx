@@ -13,9 +13,12 @@ import {
   Briefcase,
   AlertCircle,
   BookOpen,
-  Users
+  Users,
+  ImageIcon
 } from 'lucide-react';
 import { useWorkerGroups } from '../hooks/useWorkerGroups';
+import ImageUploader from './ImageUploader';
+
 
 interface TasksViewProps {
   tasks: Task[];
@@ -58,6 +61,8 @@ export default function TasksView({
   const [priority, setPriority] = useState<TaskPriority>('media');
   const [status, setStatus] = useState<TaskStatus>('pendiente');
   const [dueDate, setDueDate] = useState('');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+
 
   const handleOpenAddForm = () => {
     setTitle('');
@@ -67,7 +72,8 @@ export default function TasksView({
     setAssignedGroupId('');
     setPriority('media');
     setStatus('pendiente');
-    setDueDate(new Date().toISOString().substring(0, 10)); // Hoy por defecto
+    setDueDate(new Date().toISOString().substring(0, 10));
+    setImageUrls([]);
     setEditingTask(null);
     setShowForm(true);
   };
@@ -82,6 +88,7 @@ export default function TasksView({
     setPriority(task.priority);
     setStatus(task.status);
     setDueDate(task.dueDate || '');
+    setImageUrls(task.imageUrls || []);
     setShowForm(true);
   };
 
@@ -99,7 +106,8 @@ export default function TasksView({
         assignedGroupId: assignedGroupId || undefined,
         priority,
         status,
-        dueDate
+        dueDate,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       });
     } else {
       onAddTask({
@@ -110,7 +118,8 @@ export default function TasksView({
         assignedGroupId: assignedGroupId || undefined,
         priority,
         status,
-        dueDate
+        dueDate,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
       });
     }
     setShowForm(false);
@@ -378,6 +387,17 @@ export default function TasksView({
               />
             </div>
 
+            {/* Fotos de evidencia */}
+            <div className="md:col-span-2" id="task-form-images">
+              <ImageUploader
+                label="Fotos de Evidencia / Referencia"
+                existingUrls={imageUrls}
+                maxImages={5}
+                onChange={setImageUrls}
+                placeholder="Arrastra fotos del trabajo o de referencia aquí"
+              />
+            </div>
+
             <div className="md:col-span-2 text-right">
               <button
                 type="submit"
@@ -437,7 +457,29 @@ export default function TasksView({
                     <p className="text-xs text-stone-500 line-clamp-2 pr-4">{task.description}</p>
                   )}
 
-                  {/* Obra y plazos */}
+                  {/* Miniatura de fotos de evidencia */}
+                  {task.imageUrls && task.imageUrls.length > 0 && (
+                    <div className="flex items-center gap-1.5 pt-1" id={`worker-task-photo`}>
+                      {task.imageUrls.slice(0, 4).map((url, i) => (
+                        <img
+                          key={i}
+                          src={url}
+                          alt={`Evidencia ${i + 1}`}
+                          className="w-8 h-8 rounded-md object-cover border border-stone-200 cursor-pointer hover:opacity-90 transition"
+                          onClick={(e) => { e.stopPropagation(); window.open(url, '_blank'); }}
+                        />
+                      ))}
+                      {task.imageUrls.length > 4 && (
+                        <span className="w-8 h-8 rounded-md bg-stone-100 border border-stone-200 flex items-center justify-center text-[9px] font-bold text-stone-500">
+                          +{task.imageUrls.length - 4}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-stone-400 font-mono ml-1">
+                        <ImageIcon className="h-3 w-3 inline mr-0.5" />{task.imageUrls.length} foto{task.imageUrls.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-3.5 text-[10.5px] text-stone-400 font-mono pt-1 flex-wrap">
                     <span className="flex items-center gap-1 text-stone-600 font-medium">
                       <Briefcase className="h-3 w-3" /> {project?.name || 'Obra no asignada'}

@@ -1,0 +1,634 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+
+// ── Web Speech API type extensions ────────────────────────────────────────
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
+// ── Message types ─────────────────────────────────────────────────────────
+export interface ChatMessage {
+  id: string;
+  role: 'assistant' | 'user';
+  text: string;
+  timestamp: Date;
+}
+
+export type VoiceFlowType =
+  | 'idle'
+  | 'menu'
+  | 'new-project'
+  | 'new-worker'
+  | 'new-task'
+  | 'new-tool'
+  | 'new-expense'
+  | 'worker-profile'
+  | 'worker-task';
+
+// ── Flow field definitions ─────────────────────────────────────────────────
+interface FlowField {
+  key: string;
+  question: string;
+  type: 'text' | 'number' | 'date' | 'select';
+  options?: string[];
+  optional?: boolean;
+}
+
+// ── Pending submit (avoids side-effects inside setState) ───────────────────
+interface PendingSubmit {
+  baseFlow: VoiceFlowType;
+  data: Record<string, string>;
+}
+
+const PROJECT_FLOW: FlowField[] = [
+  { key: 'name',        question: '¿Cuál es el nombre de la obra?', type: 'text' },
+  { key: 'code',        question: '¿Cuál es el código del proyecto? Por ejemplo: OBR-2024-001', type: 'text' },
+  { key: 'location',    question: '¿Cuál es la ubicación o dirección de la obra?', type: 'text' },
+  { key: 'startDate',   question: '¿Cuándo inicia la obra? Dime la fecha en formato día, mes y año.', type: 'date' },
+  { key: 'endDate',     question: '¿Cuál es la fecha estimada de finalización?', type: 'date' },
+  { key: 'budget',      question: '¿Cuál es el presupuesto total de la obra en pesos?', type: 'number' },
+  { key: 'description', question: '¿Puedes darme una breve descripción de la obra? Si no tienes una, di "sin descripción".', type: 'text', optional: true },
+];
+
+const WORKER_FLOW: FlowField[] = [
+  { key: 'name',      question: '¿Cuál es el nombre completo del trabajador?', type: 'text' },
+  { key: 'role',      question: '¿Cuál es el cargo o puesto del trabajador?', type: 'text' },
+  { key: 'email',     question: '¿Cuál es el correo electrónico? Si no tienes, di "sin correo".', type: 'text', optional: true },
+  { key: 'phone',     question: '¿Cuál es el número de teléfono? Si no tienes, di "sin teléfono".', type: 'text', optional: true },
+  { key: 'specialty', question: '¿Cuál es la especialidad técnica del trabajador?', type: 'text' },
+];
+
+const TASK_FLOW: FlowField[] = [
+  { key: 'title',          question: '¿Cuál es el título o nombre de la tarea?', type: 'text' },
+  { key: 'project',        question: '¿A qué obra pertenece esta tarea? Dime el nombre o código de la obra.', type: 'text' },
+  { key: 'description',    question: '¿Puedes describir la tarea? Di "sin descripción" para omitir.', type: 'text', optional: true },
+  { key: 'assignedWorker', question: '¿A qué trabajador se la asignamos? Dime su nombre o di "nadie".', type: 'text', optional: true },
+  { key: 'priority',       question: '¿Cuál es la prioridad? Di: baja, media, alta o crítica.', type: 'select', options: ['baja', 'media', 'alta', 'critica'] },
+  { key: 'dueDate',        question: '¿Para cuándo debe completarse la tarea? Dime la fecha.', type: 'date' },
+];
+
+const TOOL_FLOW: FlowField[] = [
+  { key: 'name',         question: '¿Cuál es el nombre de la herramienta o equipo?', type: 'text' },
+  { key: 'code',         question: '¿Cuál es el código o identificador de la herramienta?', type: 'text' },
+  { key: 'brand',        question: '¿Cuál es la marca? Di "sin marca" si no aplica.', type: 'text', optional: true },
+  { key: 'serialNumber', question: '¿Cuál es el número de serie? Di "sin serie" si no aplica.', type: 'text', optional: true },
+  { key: 'location',     question: '¿Dónde se almacena esta herramienta?', type: 'text' },
+];
+
+const EXPENSE_FLOW: FlowField[] = [
+  { key: 'project',     question: '¿A qué obra o proyecto corresponde este gasto?', type: 'text' },
+  { key: 'category',    question: '¿En qué categoría va el gasto? Di: materiales, mano de obra, maquinaria, subcontrato, administrativo u otro.', type: 'select', options: ['materiales', 'mano_de_obra', 'maquinaria', 'subcontrato', 'administrativo', 'otro'] },
+  { key: 'amount',      question: '¿Cuál es el monto del gasto en pesos?', type: 'number' },
+  { key: 'description', question: '¿Cuál es la descripción del gasto?', type: 'text' },
+  { key: 'authorizedBy',question: '¿Quién autoriza este gasto?', type: 'text' },
+];
+
+const WORKER_PROFILE_FLOW: FlowField[] = [
+  { key: 'phone',     question: '¿Cuál es tu nuevo número de teléfono?', type: 'text' },
+  { key: 'specialty', question: '¿Cuál es tu especialidad principal? Por ejemplo: pintura, electricidad, soldadura...', type: 'text' },
+];
+
+const WORKER_TASK_FLOW: FlowField[] = [
+  { key: 'taskSearch', question: '¿Qué tarea quieres actualizar? Dime una palabra clave o parte del título.', type: 'text' },
+  { key: 'status',     question: '¿Qué estado deseas ponerle? Di: pendiente, en progreso o completada.', type: 'select', options: ['pendiente', 'en_progreso', 'completada'] },
+];
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function parseDate(text: string): string {
+  const today = new Date();
+  const lower = text.toLowerCase().trim();
+  if (lower === 'hoy') return today.toISOString().substring(0, 10);
+  if (lower === 'mañana') {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    return tomorrow.toISOString().substring(0, 10);
+  }
+
+  const months: Record<string, number> = {
+    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+  };
+
+  for (const [name, num] of Object.entries(months)) {
+    if (lower.includes(name)) {
+      const dayMatch = lower.match(/\b(\d{1,2})\b/);
+      const yearMatch = lower.match(/\b(20\d{2})\b/);
+      const day = dayMatch ? parseInt(dayMatch[1]) : 1;
+      const year = yearMatch ? parseInt(yearMatch[1]) : today.getFullYear();
+      return `${year}-${String(num).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  const numMatch = lower.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (numMatch) {
+    const d = parseInt(numMatch[1]), m = parseInt(numMatch[2]), y = parseInt(numMatch[3]);
+    const year = y < 100 ? 2000 + y : y;
+    return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  return today.toISOString().substring(0, 10);
+}
+
+function parseNumber(text: string): number {
+  const clean = text.replace(/[^\d.,]/g, '').replace(',', '.');
+  return parseFloat(clean) || 0;
+}
+
+function normalizeOptional(text: string, field: FlowField): string {
+  const lower = text.toLowerCase().trim();
+  if (!field.optional) return text;
+  if (['sin correo', 'sin teléfono', 'sin descripción', 'sin marca', 'sin serie', 'no', 'ninguno', 'omitir', 'nada', 'nadie'].includes(lower)) {
+    return '';
+  }
+  return text;
+}
+
+function matchSelect(text: string, options: string[]): string | null {
+  const lower = text.toLowerCase().trim();
+  if (options.includes(lower)) return lower;
+  for (const opt of options) {
+    if (lower.includes(opt) || opt.includes(lower)) return opt;
+  }
+  const aliases: Record<string, string> = {
+    'mano de obra': 'mano_de_obra',
+    'mano obra': 'mano_de_obra',
+    'urgente': 'critica',
+    'crítica': 'critica',
+    'pendiente': 'pendiente',
+    'en progreso': 'en_progreso',
+    'progreso': 'en_progreso',
+    'completada': 'completada',
+    'completar': 'completada',
+    'hecha': 'completada',
+    'hecho': 'completada',
+    'terminada': 'completada',
+    'terminado': 'completada',
+  };
+  for (const [alias, val] of Object.entries(aliases)) {
+    if (lower.includes(alias)) return val;
+  }
+  return null;
+}
+
+// ── State & Handler types ─────────────────────────────────────────────────
+export interface VoiceAssistantState {
+  isOpen: boolean;
+  isListening: boolean;
+  isSpeaking: boolean;
+  isProcessing: boolean;
+  flowType: VoiceFlowType;
+  messages: ChatMessage[];
+  collectedData: Record<string, string>;
+  currentFieldIndex: number;
+  currentFlow: FlowField[];
+  isSupported: boolean;
+  error: string | null;
+  /** Internal: triggers a submission side-effect via useEffect (not inside setState) */
+  pendingSubmit: PendingSubmit | null;
+}
+
+export type SubmitHandler = {
+  // admin views
+  onAddProject?: (data: any) => void | Promise<void>;
+  onAddWorker?: (data: any) => void | Promise<void>;
+  onAddTask?: (data: any) => void | Promise<void>;
+  onAddTool?: (data: any) => void | Promise<void>;
+  onAddExpense?: (data: any) => void | Promise<void>;
+  // worker portal
+  onUpdateWorker?: (data: any) => void | Promise<boolean>;
+  onUpdateTaskStatus?: (taskId: string, status: any) => void | Promise<boolean>;
+  // context data
+  projects?: any[];
+  workers?: any[];
+  tasks?: any[];
+  currentWorkerId?: string;
+  onNavigate?: (view: any) => void;
+  role?: 'admin' | 'worker';
+};
+
+const INITIAL_STATE: VoiceAssistantState = {
+  isOpen: false,
+  isListening: false,
+  isSpeaking: false,
+  isProcessing: false,
+  flowType: 'idle',
+  messages: [],
+  collectedData: {},
+  currentFieldIndex: 0,
+  currentFlow: [],
+  isSupported: false,
+  error: null,
+  pendingSubmit: null,
+};
+
+let msgCounter = 0;
+function mkMsg(role: 'assistant' | 'user', text: string): ChatMessage {
+  return { id: `msg-${++msgCounter}`, role, text, timestamp: new Date() };
+}
+
+// ── Main Hook ─────────────────────────────────────────────────────────────
+export function useVoiceAssistant(handlers: SubmitHandler) {
+  const [state, setState] = useState<VoiceAssistantState>({
+    ...INITIAL_STATE,
+    isSupported: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+  });
+
+  const recognitionRef = useRef<any>(null);
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
+
+  // FIX: Keep processInput in a ref so startListening always calls the latest version
+  const processInputRef = useRef<(input: string) => void>(() => {});
+
+  const speak = useCallback((text: string, onEnd?: () => void) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = 'es-ES';
+    utt.rate = 1.0;
+    utt.pitch = 1;
+    setState(p => ({ ...p, isSpeaking: true }));
+    utt.onend = () => {
+      setState(p => ({ ...p, isSpeaking: false }));
+      onEnd?.();
+    };
+    utt.onerror = () => setState(p => ({ ...p, isSpeaking: false }));
+    window.speechSynthesis.speak(utt);
+  }, []);
+
+  const stopListening = useCallback(() => {
+    try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+    recognitionRef.current = null;
+    setState(p => ({ ...p, isListening: false }));
+  }, []);
+
+  const startListening = useCallback(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setState(p => ({ ...p, error: 'Tu navegador no soporta reconocimiento de voz. Usa Chrome o Edge.' }));
+      return;
+    }
+
+    // Stop any existing session
+    try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-ES';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognitionRef.current = recognition;
+
+    recognition.onstart = () => setState(p => ({ ...p, isListening: true, error: null }));
+    recognition.onend = () => setState(p => ({ ...p, isListening: false }));
+    recognition.onerror = (e: any) => {
+      let errMsg = '';
+      switch (e.error) {
+        case 'not-allowed':
+          errMsg = 'Permiso de micrófono denegado. Permite el acceso al micrófono en tu navegador.';
+          break;
+        case 'no-speech':
+          errMsg = 'No escuché nada. Intenta de nuevo hablando más fuerte.';
+          break;
+        case 'network':
+          errMsg = 'Error de red al procesar voz. Verifica tu conexión.';
+          break;
+        default:
+          errMsg = `Error de voz: ${e.error}. Intenta de nuevo.`;
+      }
+      setState(p => ({ ...p, isListening: false, error: errMsg }));
+    };
+
+    // FIX: Use the ref to always call the latest version of processInput
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript.trim();
+      if (transcript) {
+        processInputRef.current(transcript);
+      }
+    };
+
+    setState(p => ({ ...p, isListening: true, error: null }));
+    try {
+      recognition.start();
+    } catch (err) {
+      setState(p => ({ ...p, isListening: false, error: 'No se pudo iniciar el micrófono. Verifica los permisos.' }));
+    }
+  }, []); // empty deps is now safe because we use processInputRef
+
+  // ── FIX: Execute pending submissions in useEffect (not inside setState) ──
+  useEffect(() => {
+    if (!state.pendingSubmit) return;
+
+    const { baseFlow, data } = state.pendingSubmit;
+    const h = handlersRef.current;
+
+    const execute = async () => {
+      try {
+        if (baseFlow === 'new-project' && h.onAddProject) {
+          await h.onAddProject({
+            name: data.name || 'Sin nombre',
+            code: data.code || 'COD-001',
+            location: data.location || '',
+            startDate: data.startDate || new Date().toISOString().substring(0, 10),
+            endDate: data.endDate || new Date().toISOString().substring(0, 10),
+            budget: parseFloat(data.budget) || 0,
+            description: data.description || '',
+            status: 'planificacion',
+          });
+        } else if (baseFlow === 'new-worker' && h.onAddWorker) {
+          await h.onAddWorker({
+            name: data.name || '',
+            role: data.role || '',
+            email: data.email || '',
+            phone: data.phone || '',
+            specialty: data.specialty || '',
+            status: 'activo',
+          });
+        } else if (baseFlow === 'new-task' && h.onAddTask) {
+          let assignedWorkerId = '';
+          if (data.assignedWorker) {
+            const workerQuery = data.assignedWorker.toLowerCase();
+            const matchedWorker = (h.workers || []).find(w => w.name.toLowerCase().includes(workerQuery));
+            if (matchedWorker) assignedWorkerId = matchedWorker.id;
+          }
+          await h.onAddTask({
+            title: data.title || '',
+            description: data.description || '',
+            priority: (data.priority as any) || 'media',
+            status: 'pendiente',
+            dueDate: data.dueDate || new Date().toISOString().substring(0, 10),
+            assignedWorkerId,
+            projectId: data.projectId || '',
+          });
+        } else if (baseFlow === 'new-tool' && h.onAddTool) {
+          await h.onAddTool({
+            name: data.name || '',
+            code: data.code || '',
+            brand: data.brand || '',
+            serialNumber: data.serialNumber || '',
+            location: data.location || '',
+            category: 'otros',
+            status: 'disponible',
+          });
+        } else if (baseFlow === 'new-expense' && h.onAddExpense) {
+          await h.onAddExpense({
+            category: (data.category as any) || 'otro',
+            amount: parseFloat(data.amount) || 0,
+            description: data.description || '',
+            authorizedBy: data.authorizedBy || '',
+            date: new Date().toISOString().substring(0, 10),
+            projectId: data.projectId || '',
+          });
+        } else if (baseFlow === 'worker-profile' && h.onUpdateWorker) {
+          const currentWorker = (h.workers || []).find(w => w.id === h.currentWorkerId);
+          if (currentWorker) {
+            await h.onUpdateWorker({ ...currentWorker, phone: data.phone, specialty: data.specialty });
+          }
+        } else if (baseFlow === 'worker-task' && h.onUpdateTaskStatus && data.matchedTaskId) {
+          await h.onUpdateTaskStatus(data.matchedTaskId, data.status as any);
+        }
+
+        const successMsg = '¡Guardado correctamente! ¿Deseas registrar algo más? Puedes decírmelo o di "salir" para cerrar.';
+        setState(p => ({
+          ...p,
+          pendingSubmit: null,
+          messages: [...p.messages, mkMsg('assistant', successMsg)],
+          collectedData: {},
+          currentFieldIndex: 0,
+          currentFlow: [],
+          flowType: 'menu',
+        }));
+        setTimeout(() => speak(successMsg), 100);
+
+      } catch (err) {
+        const errMsg = 'Hubo un error al guardar los datos. Por favor intenta de nuevo.';
+        setState(p => ({
+          ...p,
+          pendingSubmit: null,
+          messages: [...p.messages, mkMsg('assistant', errMsg)],
+          flowType: 'menu',
+        }));
+        setTimeout(() => speak(errMsg), 100);
+      }
+    };
+
+    execute();
+  }, [state.pendingSubmit, speak]);
+
+  // ── Process input (pure state transitions — no side-effects) ─────────────
+  const processInput = useCallback((input: string) => {
+    setState(prev => {
+      const trimmed = input.trim();
+      if (!trimmed) return prev;
+
+      const newMessages = [...prev.messages, mkMsg('user', trimmed)];
+      const lower = trimmed.toLowerCase();
+
+      // ── MENU / idle ─────────────────────────────────────────────────────
+      if (prev.flowType === 'idle' || prev.flowType === 'menu') {
+        const role = handlersRef.current.role || 'admin';
+        let nextFlow: VoiceFlowType = 'menu';
+        let nextFields: FlowField[] = [];
+        let responseText = '';
+
+        if (lower.includes('salir') || lower.includes('cerrar') || lower.includes('cancelar')) {
+          return { ...prev, isOpen: false, flowType: 'idle', messages: [], collectedData: {}, currentFieldIndex: 0, currentFlow: [], pendingSubmit: null };
+        }
+
+        if (role === 'admin') {
+          if (lower.includes('obra') || lower.includes('proyecto')) {
+            nextFlow = 'new-project'; nextFields = PROJECT_FLOW;
+            responseText = '¡Perfecto! Vamos a registrar una nueva obra. ' + PROJECT_FLOW[0].question;
+            setTimeout(() => handlersRef.current.onNavigate?.('projects'), 200);
+          } else if (lower.includes('trabajador') || lower.includes('empleado') || lower.includes('personal')) {
+            nextFlow = 'new-worker'; nextFields = WORKER_FLOW;
+            responseText = '¡Perfecto! Vamos a registrar un nuevo trabajador. ' + WORKER_FLOW[0].question;
+            setTimeout(() => handlersRef.current.onNavigate?.('team'), 200);
+          } else if (lower.includes('tarea') || lower.includes('actividad')) {
+            nextFlow = 'new-task'; nextFields = TASK_FLOW;
+            responseText = '¡Perfecto! Vamos a crear una nueva tarea. ' + TASK_FLOW[0].question;
+            setTimeout(() => handlersRef.current.onNavigate?.('tasks'), 200);
+          } else if (lower.includes('herramienta') || lower.includes('equipo') || lower.includes('inventario') || lower.includes('bodega')) {
+            nextFlow = 'new-tool'; nextFields = TOOL_FLOW;
+            responseText = '¡Perfecto! Vamos a registrar una herramienta. ' + TOOL_FLOW[0].question;
+            setTimeout(() => handlersRef.current.onNavigate?.('inventory'), 200);
+          } else if (lower.includes('gasto') || lower.includes('presupuesto') || lower.includes('pago')) {
+            nextFlow = 'new-expense'; nextFields = EXPENSE_FLOW;
+            responseText = '¡Perfecto! Vamos a registrar un gasto. ' + EXPENSE_FLOW[0].question;
+            setTimeout(() => handlersRef.current.onNavigate?.('budget'), 200);
+          } else {
+            responseText = 'No entendí. Puedes decir: "nueva obra", "nuevo trabajador", "nueva tarea", "nueva herramienta" o "registrar gasto". ¿Qué deseas hacer?';
+          }
+        } else {
+          if (lower.includes('perfil') || lower.includes('teléfono') || lower.includes('especialidad') || lower.includes('mis datos')) {
+            nextFlow = 'worker-profile'; nextFields = WORKER_PROFILE_FLOW;
+            responseText = 'Vamos a actualizar tu información de perfil. ' + WORKER_PROFILE_FLOW[0].question;
+          } else if (lower.includes('tarea') || lower.includes('completar') || lower.includes('iniciar') || lower.includes('estado')) {
+            nextFlow = 'worker-task'; nextFields = WORKER_TASK_FLOW;
+            responseText = 'Vamos a actualizar el estado de una de tus tareas. ' + WORKER_TASK_FLOW[0].question;
+          } else {
+            responseText = 'No entendí. Puedes decir: "actualizar perfil" o "actualizar tarea". ¿Qué deseas hacer?';
+          }
+        }
+
+        const withAssistant = [...newMessages, mkMsg('assistant', responseText)];
+        setTimeout(() => speak(responseText), 100);
+        return { ...prev, flowType: nextFlow, currentFlow: nextFields, currentFieldIndex: 0, collectedData: {}, messages: withAssistant, pendingSubmit: null };
+      }
+
+      // ── Active flow ─────────────────────────────────────────────────────
+      if (prev.currentFlow.length > 0) {
+        const field = prev.currentFlow[prev.currentFieldIndex];
+        let value = trimmed;
+
+        if (field.type === 'date') {
+          value = parseDate(trimmed);
+        } else if (field.type === 'number') {
+          value = String(parseNumber(trimmed));
+        } else if (field.type === 'select' && field.options) {
+          const matched = matchSelect(trimmed, field.options);
+          if (!matched) {
+            const errMsg = `No reconocí esa opción. Por favor di una de estas: ${field.options.join(', ')}.`;
+            setTimeout(() => speak(errMsg), 100);
+            return { ...prev, messages: [...newMessages, mkMsg('assistant', errMsg)] };
+          }
+          value = matched;
+        } else if (field.optional) {
+          value = normalizeOptional(trimmed, field);
+        }
+
+        const newData = { ...prev.collectedData, [field.key]: value };
+        const nextFieldIndex = prev.currentFieldIndex + 1;
+
+        // More fields remaining
+        if (nextFieldIndex < prev.currentFlow.length) {
+          const nextQ = prev.currentFlow[nextFieldIndex].question;
+          const confirmMsg = `Entendido: "${value}". ${nextQ}`;
+          setTimeout(() => speak(confirmMsg), 100);
+          return { ...prev, messages: [...newMessages, mkMsg('assistant', confirmMsg)], collectedData: newData, currentFieldIndex: nextFieldIndex };
+        }
+
+        // All fields done — enrich data and ask for confirmation
+        let enrichedData = { ...newData };
+        let summaryLines: string[] = [];
+
+        if (prev.flowType === 'worker-task') {
+          const searchVal = newData.taskSearch?.toLowerCase() || '';
+          const myWorkerId = handlersRef.current.currentWorkerId || '';
+          const userTasks = (handlersRef.current.tasks || []).filter(t => t.assignedWorkerId === myWorkerId);
+          const matchedTask = userTasks.find(t => t.title.toLowerCase().includes(searchVal));
+          if (!matchedTask) {
+            const noMatchMsg = `No encontré ninguna tarea tuya que contenga "${newData.taskSearch}". ¿Cuál tarea deseas actualizar?`;
+            setTimeout(() => speak(noMatchMsg), 100);
+            return { ...prev, messages: [...newMessages, mkMsg('assistant', noMatchMsg)], collectedData: {}, currentFieldIndex: 0 };
+          }
+          enrichedData.matchedTaskId = matchedTask.id;
+          enrichedData.matchedTaskTitle = matchedTask.title;
+          summaryLines = [`Tarea: "${matchedTask.title}"`, `Nuevo estado: ${newData.status}`];
+        } else if (prev.flowType === 'new-task' || prev.flowType === 'new-expense') {
+          const projQuery = (newData.project || '').toLowerCase();
+          const matchedProj = (handlersRef.current.projects || []).find(
+            p => p.name.toLowerCase().includes(projQuery) || p.code.toLowerCase().includes(projQuery)
+          );
+          enrichedData.projectId = matchedProj?.id || (handlersRef.current.projects || [])[0]?.id || '';
+          enrichedData.projectMatchedName = matchedProj?.name || (handlersRef.current.projects || [])[0]?.name || 'sin proyecto';
+          summaryLines = Object.entries(enrichedData)
+            .filter(([k]) => !['projectId'].includes(k))
+            .map(([k, v]) => v ? `${k}: ${v}` : '')
+            .filter(Boolean);
+        } else {
+          summaryLines = Object.entries(enrichedData)
+            .map(([k, v]) => v ? `${k}: ${v}` : '')
+            .filter(Boolean);
+        }
+
+        const confirmMsg = `¡Perfecto! Tengo todos los datos. Di "confirmar" para guardar o "cancelar" para empezar de nuevo. Resumen: ${summaryLines.join(', ')}.`;
+        setTimeout(() => speak(confirmMsg), 100);
+        return {
+          ...prev,
+          messages: [...newMessages, mkMsg('assistant', confirmMsg)],
+          collectedData: enrichedData,
+          currentFieldIndex: nextFieldIndex,
+          flowType: `${prev.flowType}-confirm` as VoiceFlowType,
+        };
+      }
+
+      // ── Confirmation step ─────────────────────────────────────────────
+      if (prev.flowType.endsWith('-confirm')) {
+        const baseFlow = prev.flowType.replace('-confirm', '') as VoiceFlowType;
+
+        if (lower.includes('confirmar') || lower.includes('sí') || lower.includes('si') || lower.includes('guardar') || lower.includes('adelante') || lower.includes('correcto')) {
+          // FIX: Set pendingSubmit instead of calling handlers here
+          const savingMsg = 'Guardando los datos, un momento...';
+          setTimeout(() => speak(savingMsg), 100);
+          return {
+            ...prev,
+            messages: [...newMessages, mkMsg('assistant', savingMsg)],
+            pendingSubmit: { baseFlow, data: prev.collectedData },
+          };
+        }
+
+        if (lower.includes('cancelar') || lower.includes('empezar de nuevo') || lower.includes('no')) {
+          const cancelMsg = '¡Entendido! Empezamos de nuevo. ¿Qué deseas hacer?';
+          setTimeout(() => speak(cancelMsg), 100);
+          return { ...prev, messages: [...newMessages, mkMsg('assistant', cancelMsg)], collectedData: {}, currentFieldIndex: 0, currentFlow: [], flowType: 'menu', pendingSubmit: null };
+        }
+      }
+
+      return { ...prev, messages: newMessages };
+    });
+  }, [speak]);
+
+  // Keep processInputRef always up to date
+  processInputRef.current = processInput;
+
+  // ── Open / Close ──────────────────────────────────────────────────────
+  const open = useCallback(() => {
+    const role = handlersRef.current.role || 'admin';
+    const greeting = role === 'admin'
+      ? '¡Hola! Soy tu asistente de voz. Puedo registrar datos sin usar las manos. ¿Qué deseas hacer? Puedes decir: nueva obra, nuevo trabajador, nueva tarea, nueva herramienta o registrar gasto.'
+      : '¡Hola! Soy tu asistente de voz. ¿Qué deseas hacer? Puedes decir: actualizar perfil o actualizar tarea.';
+
+    setState(p => ({
+      ...p,
+      isOpen: true,
+      flowType: 'menu',
+      messages: [mkMsg('assistant', greeting)],
+      collectedData: {},
+      currentFieldIndex: 0,
+      currentFlow: [],
+      pendingSubmit: null,
+    }));
+    setTimeout(() => speak(greeting), 300);
+  }, [speak]);
+
+  const close = useCallback(() => {
+    window.speechSynthesis?.cancel();
+    stopListening();
+    setState(p => ({ ...INITIAL_STATE, isSupported: p.isSupported }));
+  }, [stopListening]);
+
+  const submitText = useCallback((text: string) => {
+    processInput(text);
+  }, [processInput]);
+
+  const toggleListening = useCallback(() => {
+    if (state.isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  }, [state.isListening, startListening, stopListening]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis?.cancel();
+      try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+    };
+  }, []);
+
+  return { state, open, close, toggleListening, submitText, speak };
+}

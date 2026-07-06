@@ -15,9 +15,11 @@ import {
   BookOpen,
   Users,
   Trash2,
-  UserCheck
+  UserCheck,
+  ImageIcon
 } from 'lucide-react';
 import { useWorkerGroups } from '../hooks/useWorkerGroups';
+import ImageUploader from './ImageUploader';
 
 interface ProjectsViewProps {
   projects: Project[];
@@ -64,6 +66,7 @@ export default function ProjectsView({
   const [budget, setBudget] = useState(0);
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<ProjectStatus>('planificacion');
+  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
 
   // Abrir formulario para agregar
   const handleOpenAddForm = () => {
@@ -75,6 +78,7 @@ export default function ProjectsView({
     setBudget(0);
     setDescription('');
     setStatus('planificacion');
+    setImageUrl(undefined);
     setEditingProject(null);
     setShowAddForm(true);
   };
@@ -91,6 +95,7 @@ export default function ProjectsView({
     setBudget(proj.budget);
     setDescription(proj.description || '');
     setStatus(proj.status);
+    setImageUrl(proj.imageUrl);
     setShowAddForm(true);
   };
 
@@ -109,7 +114,8 @@ export default function ProjectsView({
         endDate,
         budget: Number(budget),
         description,
-        status
+        status,
+        imageUrl,
       });
     } else {
       onAddProject({
@@ -120,7 +126,8 @@ export default function ProjectsView({
         endDate,
         budget: Number(budget),
         description,
-        status
+        status,
+        imageUrl,
       });
     }
     setShowAddForm(false);
@@ -175,7 +182,7 @@ export default function ProjectsView({
         <button
           onClick={handleOpenAddForm}
           className="bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg flex items-center gap-1.5 transition shadow-xs cursor-pointer"
-          id="btn-new-project"
+          id="btn-add-project"
         >
           <Plus className="h-4 w-4" /> Agregar Obra / Proyecto
         </button>
@@ -246,8 +253,8 @@ export default function ProjectsView({
           </div>
 
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4" id="project-form">
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-stone-700 mb-1">Nombre de la Obra o Proyecto *</label>
+            <div className="md:col-span-3">
+              <label className="block text-xs font-semibold text-stone-700 mb-1" id="project-form-name">Nombre de la Obra o Proyecto *</label>
               <input
                 required
                 type="text"
@@ -259,7 +266,7 @@ export default function ProjectsView({
               />
             </div>
 
-            <div>
+            <div id="project-form-code">
               <label className="block text-xs font-semibold text-stone-700 mb-1">Código del Proyecto (Corto) *</label>
               <input
                 required
@@ -272,7 +279,7 @@ export default function ProjectsView({
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-2" id="project-form-location">
               <label className="block text-xs font-semibold text-stone-700 mb-1">Ubicación / Dirección de la Obra</label>
               <input
                 type="text"
@@ -284,7 +291,7 @@ export default function ProjectsView({
               />
             </div>
 
-            <div>
+            <div id="project-form-budget">
               <label className="block text-xs font-semibold text-stone-700 mb-1">Presupuesto Asignado (USD) *</label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-stone-400 text-xs font-bold">$</span>
@@ -301,7 +308,7 @@ export default function ProjectsView({
               </div>
             </div>
 
-            <div>
+            <div id="project-form-dates">
               <label className="block text-xs font-semibold text-stone-700 mb-1">Fecha de Inicio</label>
               <input
                 type="date"
@@ -350,7 +357,18 @@ export default function ProjectsView({
               />
             </div>
 
-            <div className="md:col-span-3 text-right">
+            {/* Foto de referencia / ubicación */}
+            <div className="md:col-span-3" id="project-form-image">
+              <ImageUploader
+                label="Foto de Referencia / Ubicación (Opcional)"
+                single
+                existingUrls={imageUrl ? [imageUrl] : []}
+                onChange={(urls) => setImageUrl(urls[0] || undefined)}
+                placeholder="Arrastra una foto del sitio o plano aquí"
+              />
+            </div>
+
+            <div className="md:col-span-3 text-right" id="project-form-submit">
               <button
                 type="submit"
                 className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer"
@@ -381,21 +399,33 @@ export default function ProjectsView({
               {/* Bloque superior clickeable para abrir/cerrar */}
               <div 
                 onClick={() => handleToggleExpand(project.id)}
-                className="p-5 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 cursor-pointer select-none"
+                className="p-5 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 cursor-pointer select-none project-card-expand"
               >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-[10px] font-semibold bg-stone-100 border border-stone-200 text-stone-700 px-2 py-0.5 rounded">
-                      {project.code}
-                    </span>
-                    <h3 className="font-bold text-base text-stone-950 font-sans tracking-tight">{project.name}</h3>
-                    <span className={`text-[10px] font-semibold border px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>
-                      {badge.label}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-stone-500">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" />
-                    <span>{project.location}</span>
+                <div className="space-y-1 flex items-start gap-3">
+                  {/* Cover photo thumbnail */}
+                  {project.imageUrl ? (
+                    <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-stone-200 shadow-xs">
+                      <img src={project.imageUrl} alt={project.name} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg shrink-0 bg-stone-100 border border-stone-200 flex items-center justify-center">
+                      <ImageIcon className="h-5 w-5 text-stone-300" />
+                    </div>
+                  )}
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-[10px] font-semibold bg-stone-100 border border-stone-200 text-stone-700 px-2 py-0.5 rounded">
+                        {project.code}
+                      </span>
+                      <h3 className="font-bold text-base text-stone-950 font-sans tracking-tight">{project.name}</h3>
+                      <span className={`text-[10px] font-semibold border px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>
+                        {badge.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-stone-500">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" />
+                      <span>{project.location}</span>
+                    </div>
                   </div>
                 </div>
 

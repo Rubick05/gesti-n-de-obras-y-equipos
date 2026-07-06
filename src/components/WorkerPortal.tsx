@@ -3,7 +3,7 @@ import { Task, Project, Worker, TaskStatus, Tool, Loan, ToolCategory, ToolStatus
 import {
   CheckCircle2, Circle, Clock, AlertTriangle, Edit3, Save, X,
   User, Phone, Mail, Award, Briefcase, Star, TrendingUp,
-  ChevronRight, Loader2, LogOut, Users, Wrench, Search, Filter, AlertCircle
+  ChevronRight, Loader2, LogOut, Users, Wrench, Search, Filter, AlertCircle, ImageIcon
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWorkerGroups } from '../hooks/useWorkerGroups';
@@ -17,6 +17,8 @@ interface WorkerPortalProps {
   onUpdateWorker: (worker: Worker) => Promise<boolean>;
   tools: Tool[];
   loans: Loan[];
+  activeTab?: 'tasks' | 'profile' | 'groups' | 'inventory';
+  onTabChange?: (tab: 'tasks' | 'profile' | 'groups' | 'inventory') => void;
 }
 
 const PRIORITY_CONFIG: Record<Task['priority'], { label: string; badge: string; dot: string }> = {
@@ -32,9 +34,11 @@ const STATUS_COLUMNS: { status: TaskStatus; label: string; color: string; icon: 
   { status: 'completada',  label: 'Completadas', color: 'border-t-emerald-500',icon: CheckCircle2 },
 ];
 
-export default function WorkerPortal({
-  myTasks, projects, workers, myWorkerData, onUpdateTaskStatus, onUpdateWorker, tools, loans
-}: WorkerPortalProps) {
+export default function WorkerPortal(props: WorkerPortalProps) {
+  const {
+    myTasks, projects, workers, myWorkerData, onUpdateTaskStatus, onUpdateWorker, tools, loans,
+    activeTab: propsActiveTab, onTabChange
+  } = props;
   const { profile, updateProfile, logout } = useAuth();
   const { groups, loading: groupsLoading } = useWorkerGroups();
 
@@ -45,7 +49,9 @@ export default function WorkerPortal({
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'tasks' | 'profile' | 'groups' | 'inventory'>('tasks');
+  const [localActiveTab, setLocalActiveTab] = useState<'tasks' | 'profile' | 'groups' | 'inventory'>('tasks');
+  const activeTab = propsActiveTab || localActiveTab;
+  const setActiveTab = onTabChange || setLocalActiveTab;
 
   const [searchTool, setSearchTool] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('todos');
@@ -184,7 +190,7 @@ export default function WorkerPortal({
                   ? 'border-orange-600 text-orange-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
-              id={`tab-${id}`}
+              id={`worker-tab-${id}`}
             >
               <Icon className="h-3.5 w-3.5" />
               {label}
@@ -197,7 +203,7 @@ export default function WorkerPortal({
         
         {/* PESTAÑA: MIS TAREAS (Kanban) */}
         {activeTab === 'tasks' && (
-          <div className="animate-fadeIn" id="worker-tasks-kanban">
+          <div className="animate-fadeIn" id="worker-task-kanban">
             {totalCount === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
                 <Star className="h-10 w-10 text-slate-200 mx-auto mb-3" />
@@ -268,7 +274,29 @@ export default function WorkerPortal({
                                 <p className="text-[10.5px] text-slate-500 leading-relaxed mb-2 line-clamp-2">{task.description}</p>
                               )}
 
-                              {/* Project + date */}
+                              {/* Evidence photos */}
+                              {task.imageUrls && task.imageUrls.length > 0 && (
+                                <div className="flex items-center gap-1 mb-2" id="worker-task-photo">
+                                  {task.imageUrls.slice(0, 3).map((url, i) => (
+                                    <img
+                                      key={i}
+                                      src={url}
+                                      alt={`Evidencia ${i + 1}`}
+                                      className="w-9 h-9 rounded-lg object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition"
+                                      onClick={() => window.open(url, '_blank')}
+                                    />
+                                  ))}
+                                  {task.imageUrls.length > 3 && (
+                                    <span className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-400">
+                                      +{task.imageUrls.length - 3}
+                                    </span>
+                                  )}
+                                  <span className="text-[9px] text-slate-400 font-mono ml-0.5 flex items-center gap-0.5">
+                                    <ImageIcon className="h-2.5 w-2.5" />{task.imageUrls.length}
+                                  </span>
+                                </div>
+                              )}
+
                               <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono mb-3">
                                 <span className="truncate max-w-[120px]">{proj?.code} • {proj?.name.split(' ')[0]}</span>
                                 {task.dueDate && <span className={overdue ? 'text-red-500 font-bold' : ''}>{task.dueDate}</span>}

@@ -50,6 +50,7 @@ export interface Project {
   budget: number;
   description: string;
   status: ProjectStatus;
+  imageUrl?: string;   // cover photo / location reference
 }
 
 export interface Worker {
@@ -72,6 +73,7 @@ export interface Task {
   priority: TaskPriority;
   status: TaskStatus;
   dueDate: string;
+  imageUrls?: string[];  // graphical evidence / reference photos
 }
 
 export interface WorkerGroup {

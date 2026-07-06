@@ -15,6 +15,7 @@ export function dbToProject(db: DbProject): Project {
     budget: db.budget,
     description: db.description ?? '',
     status: db.status,
+    imageUrl: db.image_url ?? undefined,
   };
 }
 
@@ -44,6 +45,7 @@ export function useProjects() {
         name: proj.name, code: proj.code, location: proj.location,
         start_date: proj.startDate || null, end_date: proj.endDate || null,
         budget: proj.budget, description: proj.description, status: proj.status,
+        image_url: proj.imageUrl || null,
       })
       .select()
       .single();
@@ -60,6 +62,7 @@ export function useProjects() {
         name: proj.name, code: proj.code, location: proj.location,
         start_date: proj.startDate || null, end_date: proj.endDate || null,
         budget: proj.budget, description: proj.description, status: proj.status,
+        image_url: proj.imageUrl || null,
       })
       .eq('id', proj.id);
     if (err) { setError(err.message); return false; }

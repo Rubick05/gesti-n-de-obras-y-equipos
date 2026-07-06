@@ -13,6 +13,7 @@ export function dbToTask(db: DbTask): Task {
     priority: db.priority,
     status: db.status,
     dueDate: db.due_date ?? '',
+    imageUrls: db.image_urls ?? undefined,
   };
 }
 
@@ -71,6 +72,7 @@ export function useTasks(workerIdFilter?: string) {
         priority: task.priority,
         status: task.status,
         due_date: task.dueDate || null,
+        image_urls: task.imageUrls || null,
       })
       .select().single();
     if (err) { setError(err.message); return null; }
@@ -89,6 +91,7 @@ export function useTasks(workerIdFilter?: string) {
         priority: task.priority,
         status: task.status,
         due_date: task.dueDate || null,
+        image_urls: task.imageUrls || null,
       })
       .eq('id', task.id);
     if (err) { setError(err.message); return false; }

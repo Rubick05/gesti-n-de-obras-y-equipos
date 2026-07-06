@@ -30,6 +30,7 @@ export type DbProject = {
   budget: number;
   description: string | null;
   status: 'planificacion' | 'en_progreso' | 'detenido' | 'completado';
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -56,6 +57,7 @@ export type DbTask = {
   priority: 'baja' | 'media' | 'alta' | 'critica';
   status: 'pendiente' | 'en_progreso' | 'completada';
   due_date: string | null;
+  image_urls?: string[] | null;
   created_at: string;
   updated_at: string;
 };
