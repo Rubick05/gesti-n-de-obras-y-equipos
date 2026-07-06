@@ -223,6 +223,24 @@ const INITIAL_STATE: VoiceAssistantState = {
   pendingSubmit: null,
 };
 
+// ── Symbol normalization ──────────────────────────────────────────────────
+// Converts spoken symbol names into their actual characters.
+function normalizeDictatedSymbols(text: string): string {
+  return text
+    .replace(/\bbarra\s+baja\b/gi, '_')
+    .replace(/\bbarra\s+diagonal\b/gi, '/')
+    .replace(/\bbarra\b/gi, '/')
+    .replace(/\bguión\b/gi, '-')
+    .replace(/\bguion\b/gi, '-')
+    .replace(/\bpunto\b/gi, '.')
+    .replace(/\barroba\b/gi, '@')
+    .replace(/\bslash\b/gi, '/')
+    .replace(/\bunderscore\b/gi, '_')
+    .replace(/\basterisc[oa]\b/gi, '*')
+    .replace(/\bespacio\b/gi, ' ')
+    .replace(/\s*([\-\/_.@*])\s*/g, '$1');
+}
+
 let msgCounter = 0;
 function mkMsg(role: 'assistant' | 'user', text: string): ChatMessage {
   return { id: `msg-${++msgCounter}`, role, text, timestamp: new Date() };
@@ -239,7 +257,6 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
 
-  // FIX: Keep processInput in a ref so startListening always calls the latest version
   const processInputRef = useRef<(input: string) => void>(() => {});
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
@@ -271,7 +288,6 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       return;
     }
 
-    // Stop any existing session
     try { recognitionRef.current?.stop(); } catch { /* ignore */ }
 
     const recognition = new SpeechRecognition();
@@ -301,7 +317,6 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       setState(p => ({ ...p, isListening: false, error: errMsg }));
     };
 
-    // FIX: Use the ref to always call the latest version of processInput
     recognition.onresult = (e: any) => {
       const transcript = e.results[0][0].transcript.trim();
       if (transcript) {
@@ -315,9 +330,9 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
     } catch (err) {
       setState(p => ({ ...p, isListening: false, error: 'No se pudo iniciar el micrófono. Verifica los permisos.' }));
     }
-  }, []); // empty deps is now safe because we use processInputRef
+  }, []);
 
-  // ── FIX: Execute pending submissions in useEffect (not inside setState) ──
+  // ── Execute pending submissions in useEffect ─────────────────────────────
   useEffect(() => {
     if (!state.pendingSubmit) return;
 
@@ -417,14 +432,65 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
     execute();
   }, [state.pendingSubmit, speak]);
 
+  // Helper to build the final summary
+  const buildSummaryConfirm = useCallback((
+    prev: VoiceAssistantState,
+    newData: Record<string, string>,
+    newMessages: ChatMessage[]
+  ): VoiceAssistantState => {
+    let enrichedData = { ...newData };
+    let summaryLines: string[] = [];
+
+    if (prev.flowType === 'worker-task') {
+      const searchVal = newData.taskSearch?.toLowerCase() || '';
+      const myWorkerId = handlersRef.current.currentWorkerId || '';
+      const userTasks = (handlersRef.current.tasks || []).filter(t => t.assignedWorkerId === myWorkerId);
+      const matchedTask = userTasks.find(t => t.title.toLowerCase().includes(searchVal));
+      if (!matchedTask) {
+        const noMatchMsg = `No encontré ninguna tarea tuya que contenga "${newData.taskSearch}". ¿Cuál tarea deseas actualizar?`;
+        setTimeout(() => speak(noMatchMsg), 100);
+        return { ...prev, messages: [...newMessages, mkMsg('assistant', noMatchMsg)], collectedData: {}, currentFieldIndex: 0 };
+      }
+      enrichedData.matchedTaskId = matchedTask.id;
+      enrichedData.matchedTaskTitle = matchedTask.title;
+      summaryLines = [`Tarea: "${matchedTask.title}"`, `Nuevo estado: ${newData.status}`];
+    } else if (prev.flowType === 'new-task' || prev.flowType === 'new-expense') {
+      const projQuery = (newData.project || '').toLowerCase();
+      const matchedProj = (handlersRef.current.projects || []).find(
+        p => p.name.toLowerCase().includes(projQuery) || p.code.toLowerCase().includes(projQuery)
+      );
+      enrichedData.projectId = matchedProj?.id || (handlersRef.current.projects || [])[0]?.id || '';
+      enrichedData.projectMatchedName = matchedProj?.name || (handlersRef.current.projects || [])[0]?.name || 'sin proyecto';
+      summaryLines = Object.entries(enrichedData)
+        .filter(([k]) => !['projectId'].includes(k))
+        .map(([k, v]) => v ? `${k}: ${v}` : '')
+        .filter(Boolean);
+    } else {
+      summaryLines = Object.entries(enrichedData)
+        .map(([k, v]) => v ? `${k}: ${v}` : '')
+        .filter(Boolean);
+    }
+
+    const confirmMsg = `¡Perfecto! Di "confirmar" para guardar o "cancelar" para reiniciar. Resumen: ${summaryLines.join(', ')}.`;
+    setTimeout(() => speak(confirmMsg), 100);
+    return {
+      ...prev,
+      messages: [...newMessages, mkMsg('assistant', confirmMsg)],
+      collectedData: enrichedData,
+      currentFieldIndex: prev.currentFlow.length,
+      flowType: `${prev.flowType}-confirm` as VoiceFlowType,
+    };
+  }, [speak]);
+
   // ── Process input (pure state transitions — no side-effects) ─────────────
   const processInput = useCallback((input: string) => {
     setState(prev => {
-      const trimmed = input.trim();
-      if (!trimmed) return prev;
+      // Normalize dictations first
+      const normalized = normalizeDictatedSymbols(input.trim());
+      if (!normalized) return prev;
 
-      const newMessages = [...prev.messages, mkMsg('user', trimmed)];
-      const lower = trimmed.toLowerCase();
+      const newMessages = [...prev.messages, mkMsg('user', normalized)];
+      const lower = normalized.toLowerCase();
 
       // ── MENU / idle ─────────────────────────────────────────────────────
       if (prev.flowType === 'idle' || prev.flowType === 'menu') {
@@ -478,89 +544,11 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
         return { ...prev, flowType: nextFlow, currentFlow: nextFields, currentFieldIndex: 0, collectedData: {}, messages: withAssistant, pendingSubmit: null };
       }
 
-      // ── Active flow ─────────────────────────────────────────────────────
-      if (prev.currentFlow.length > 0) {
-        const field = prev.currentFlow[prev.currentFieldIndex];
-        let value = trimmed;
-
-        if (field.type === 'date') {
-          value = parseDate(trimmed);
-        } else if (field.type === 'number') {
-          value = String(parseNumber(trimmed));
-        } else if (field.type === 'select' && field.options) {
-          const matched = matchSelect(trimmed, field.options);
-          if (!matched) {
-            const errMsg = `No reconocí esa opción. Por favor di una de estas: ${field.options.join(', ')}.`;
-            setTimeout(() => speak(errMsg), 100);
-            return { ...prev, messages: [...newMessages, mkMsg('assistant', errMsg)] };
-          }
-          value = matched;
-        } else if (field.optional) {
-          value = normalizeOptional(trimmed, field);
-        }
-
-        const newData = { ...prev.collectedData, [field.key]: value };
-        const nextFieldIndex = prev.currentFieldIndex + 1;
-
-        // More fields remaining
-        if (nextFieldIndex < prev.currentFlow.length) {
-          const nextQ = prev.currentFlow[nextFieldIndex].question;
-          const confirmMsg = `Entendido: "${value}". ${nextQ}`;
-          setTimeout(() => speak(confirmMsg), 100);
-          return { ...prev, messages: [...newMessages, mkMsg('assistant', confirmMsg)], collectedData: newData, currentFieldIndex: nextFieldIndex };
-        }
-
-        // All fields done — enrich data and ask for confirmation
-        let enrichedData = { ...newData };
-        let summaryLines: string[] = [];
-
-        if (prev.flowType === 'worker-task') {
-          const searchVal = newData.taskSearch?.toLowerCase() || '';
-          const myWorkerId = handlersRef.current.currentWorkerId || '';
-          const userTasks = (handlersRef.current.tasks || []).filter(t => t.assignedWorkerId === myWorkerId);
-          const matchedTask = userTasks.find(t => t.title.toLowerCase().includes(searchVal));
-          if (!matchedTask) {
-            const noMatchMsg = `No encontré ninguna tarea tuya que contenga "${newData.taskSearch}". ¿Cuál tarea deseas actualizar?`;
-            setTimeout(() => speak(noMatchMsg), 100);
-            return { ...prev, messages: [...newMessages, mkMsg('assistant', noMatchMsg)], collectedData: {}, currentFieldIndex: 0 };
-          }
-          enrichedData.matchedTaskId = matchedTask.id;
-          enrichedData.matchedTaskTitle = matchedTask.title;
-          summaryLines = [`Tarea: "${matchedTask.title}"`, `Nuevo estado: ${newData.status}`];
-        } else if (prev.flowType === 'new-task' || prev.flowType === 'new-expense') {
-          const projQuery = (newData.project || '').toLowerCase();
-          const matchedProj = (handlersRef.current.projects || []).find(
-            p => p.name.toLowerCase().includes(projQuery) || p.code.toLowerCase().includes(projQuery)
-          );
-          enrichedData.projectId = matchedProj?.id || (handlersRef.current.projects || [])[0]?.id || '';
-          enrichedData.projectMatchedName = matchedProj?.name || (handlersRef.current.projects || [])[0]?.name || 'sin proyecto';
-          summaryLines = Object.entries(enrichedData)
-            .filter(([k]) => !['projectId'].includes(k))
-            .map(([k, v]) => v ? `${k}: ${v}` : '')
-            .filter(Boolean);
-        } else {
-          summaryLines = Object.entries(enrichedData)
-            .map(([k, v]) => v ? `${k}: ${v}` : '')
-            .filter(Boolean);
-        }
-
-        const confirmMsg = `¡Perfecto! Tengo todos los datos. Di "confirmar" para guardar o "cancelar" para empezar de nuevo. Resumen: ${summaryLines.join(', ')}.`;
-        setTimeout(() => speak(confirmMsg), 100);
-        return {
-          ...prev,
-          messages: [...newMessages, mkMsg('assistant', confirmMsg)],
-          collectedData: enrichedData,
-          currentFieldIndex: nextFieldIndex,
-          flowType: `${prev.flowType}-confirm` as VoiceFlowType,
-        };
-      }
-
-      // ── Confirmation step ─────────────────────────────────────────────
+      // ── Final confirmation step (entire form) ─────────────────────────
       if (prev.flowType.endsWith('-confirm')) {
         const baseFlow = prev.flowType.replace('-confirm', '') as VoiceFlowType;
 
         if (lower.includes('confirmar') || lower.includes('sí') || lower.includes('si') || lower.includes('guardar') || lower.includes('adelante') || lower.includes('correcto')) {
-          // FIX: Set pendingSubmit instead of calling handlers here
           const savingMsg = 'Guardando los datos, un momento...';
           setTimeout(() => speak(savingMsg), 100);
           return {
@@ -575,20 +563,62 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
           setTimeout(() => speak(cancelMsg), 100);
           return { ...prev, messages: [...newMessages, mkMsg('assistant', cancelMsg)], collectedData: {}, currentFieldIndex: 0, currentFlow: [], flowType: 'menu', pendingSubmit: null };
         }
+
+        const remindMsg = 'Di "confirmar" para guardar o "cancelar" para empezar de nuevo.';
+        setTimeout(() => speak(remindMsg), 100);
+        return { ...prev, messages: [...newMessages, mkMsg('assistant', remindMsg)] };
+      }
+
+      // ── Active flow: collect a field value sequentially ──────────────────
+      if (prev.currentFlow.length > 0 && prev.currentFieldIndex < prev.currentFlow.length) {
+        const field = prev.currentFlow[prev.currentFieldIndex];
+        let value = normalized;
+
+        if (field.type === 'date') {
+          value = parseDate(normalized);
+        } else if (field.type === 'number') {
+          value = String(parseNumber(normalized));
+        } else if (field.type === 'select' && field.options) {
+          const matched = matchSelect(normalized, field.options);
+          if (!matched) {
+            const errMsg = `No reconocí esa opción. Por favor di una de estas: ${field.options.join(', ')}.`;
+            setTimeout(() => speak(errMsg), 100);
+            return { ...prev, messages: [...newMessages, mkMsg('assistant', errMsg)] };
+          }
+          value = matched;
+        } else if (field.optional) {
+          value = normalizeOptional(normalized, field);
+        }
+
+        const newData = { ...prev.collectedData, [field.key]: value };
+        const nextFieldIndex = prev.currentFieldIndex + 1;
+
+        if (nextFieldIndex < prev.currentFlow.length) {
+          const nextQ = prev.currentFlow[nextFieldIndex].question;
+          const confirmMsg = `Entendido. Siguiente campo: ${nextQ}`;
+          setTimeout(() => speak(confirmMsg), 100);
+          return {
+            ...prev,
+            messages: [...newMessages, mkMsg('assistant', confirmMsg)],
+            collectedData: newData,
+            currentFieldIndex: nextFieldIndex,
+          };
+        }
+
+        return buildSummaryConfirm({ ...prev, currentFieldIndex: nextFieldIndex }, newData, newMessages);
       }
 
       return { ...prev, messages: newMessages };
     });
-  }, [speak]);
+  }, [speak, buildSummaryConfirm]);
 
-  // Keep processInputRef always up to date
   processInputRef.current = processInput;
 
   // ── Open / Close ──────────────────────────────────────────────────────
   const open = useCallback(() => {
     const role = handlersRef.current.role || 'admin';
     const greeting = role === 'admin'
-      ? '¡Hola! Soy tu asistente de voz. Puedo registrar datos sin usar las manos. ¿Qué deseas hacer? Puedes decir: nueva obra, nuevo trabajador, nueva tarea, nueva herramienta o registrar gasto.'
+      ? '¡Hola! Soy tu asistente de voz. ¿Qué deseas hacer? Puedes decir: nueva obra, nuevo trabajador, nueva tarea o registrar gasto.'
       : '¡Hola! Soy tu asistente de voz. ¿Qué deseas hacer? Puedes decir: actualizar perfil o actualizar tarea.';
 
     setState(p => ({
@@ -622,7 +652,6 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
     }
   }, [state.isListening, startListening, stopListening]);
 
-  // Cleanup
   useEffect(() => {
     return () => {
       window.speechSynthesis?.cancel();
