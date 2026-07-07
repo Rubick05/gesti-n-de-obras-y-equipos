@@ -15,8 +15,10 @@ function getTargetRect(target: string): Rect | null {
       const el = document.querySelector(sel);
       if (el) {
         const r = el.getBoundingClientRect();
+        // getBoundingClientRect() already returns viewport-relative coords.
+        // Do NOT add scrollY here — the SVG overlay is position:fixed.
         return {
-          top: r.top - PADDING + window.scrollY,
+          top: r.top - PADDING,
           left: r.left - PADDING,
           width: r.width + PADDING * 2,
           height: r.height + PADDING * 2,
@@ -30,7 +32,8 @@ function getTargetRect(target: string): Rect | null {
 // ── Spotlight SVG mask ────────────────────────────────────────────────────
 function SpotlightMask({ rect }: { rect: Rect }) {
   const vw = window.innerWidth;
-  const vh = window.innerHeight + window.scrollY;
+  // SVG is position:fixed — use only innerHeight, never add scrollY
+  const vh = window.innerHeight;
 
   return (
     <svg
@@ -48,9 +51,10 @@ function SpotlightMask({ rect }: { rect: Rect }) {
       <defs>
         <mask id="tutorial-spotlight-mask">
           <rect x="0" y="0" width={vw} height={vh} fill="white" />
+          {/* rect coords are already viewport-relative (no scrollY offset needed) */}
           <rect
             x={rect.left}
-            y={rect.top - window.scrollY}
+            y={rect.top}
             width={rect.width}
             height={rect.height}
             rx="12"
@@ -67,7 +71,7 @@ function SpotlightMask({ rect }: { rect: Rect }) {
       {/* Spotlight ring */}
       <rect
         x={rect.left - 2}
-        y={rect.top - window.scrollY - 2}
+        y={rect.top - 2}
         width={rect.width + 4}
         height={rect.height + 4}
         rx="14"
@@ -100,20 +104,24 @@ function TutorialTooltip({
   onNext, onPrev, onSkip,
 }: TooltipProps) {
   const tooltipRef = useRef<HTMLDivElement>(null);
+  // Tooltip width: 320px on desktop, but capped to (vw - 32px) on mobile
+  const tooltipWidth = Math.min(320, window.innerWidth - 32);
   const [style, setStyle] = useState<React.CSSProperties>({
     position: 'fixed',
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
     zIndex: 9999,
+    width: tooltipWidth,
   });
 
   useEffect(() => {
     if (!tooltipRef.current) return;
-    const tw = tooltipRef.current.offsetWidth;
     const th = tooltipRef.current.offsetHeight;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+
+    const tw = tooltipWidth;
 
     if (!rect || position === 'center') {
       setStyle({
@@ -122,20 +130,26 @@ function TutorialTooltip({
         left: '50%',
         transform: 'translate(-50%, -50%)',
         zIndex: 9999,
+        width: tw,
       });
       return;
     }
 
-    const GAP = 16;
+    const GAP = 12;
     let top = 0, left = 0;
-    const spotTop = rect.top - window.scrollY;
+    // rect coords are already viewport-relative (no scrollY offset needed)
+    const spotTop = rect.top;
     const spotBottom = spotTop + rect.height;
     const spotLeft = rect.left;
     const spotRight = rect.left + rect.width;
     const spotCenterX = spotLeft + rect.width / 2;
     const spotCenterY = spotTop + rect.height / 2;
 
-    switch (position) {
+    // On mobile (vw < 480), always prefer bottom or center to avoid off-screen
+    const isMobile = vw < 480;
+    const effectivePosition = isMobile && (position === 'right' || position === 'left') ? 'bottom' : position;
+
+    switch (effectivePosition) {
       case 'bottom':
         top = spotBottom + GAP;
         left = Math.min(Math.max(spotCenterX - tw / 2, 8), vw - tw - 8);
@@ -146,18 +160,18 @@ function TutorialTooltip({
         break;
       case 'right':
         top = Math.min(Math.max(spotCenterY - th / 2, 8), vh - th - 8);
-        left = spotRight + GAP;
+        left = Math.min(spotRight + GAP, vw - tw - 8);
         break;
       case 'left':
         top = Math.min(Math.max(spotCenterY - th / 2, 8), vh - th - 8);
-        left = spotLeft - tw - GAP;
+        left = Math.max(spotLeft - tw - GAP, 8);
         break;
       default:
         top = vh / 2 - th / 2;
         left = vw / 2 - tw / 2;
     }
 
-    // Keep in viewport
+    // Keep in viewport with safe margin
     top = Math.max(8, Math.min(top, vh - th - 8));
     left = Math.max(8, Math.min(left, vw - tw - 8));
 
@@ -167,6 +181,7 @@ function TutorialTooltip({
       left,
       zIndex: 9999,
       transform: 'none',
+      width: tw,
     });
   }, [rect, position, stepIndex]);
 
@@ -177,7 +192,7 @@ function TutorialTooltip({
     <div
       ref={tooltipRef}
       style={style}
-      className="w-80 bg-white rounded-2xl shadow-2xl shadow-black/25 border border-slate-100 animate-slideUp overflow-hidden"
+      className="bg-white rounded-2xl shadow-2xl shadow-black/25 border border-slate-100 animate-slideUp overflow-hidden"
     >
       {/* Header */}
       <div className="bg-gradient-to-br from-orange-600 to-orange-500 px-4 py-3 flex items-start gap-2">
@@ -259,9 +274,9 @@ function TutorialPicker({ role, onSelect, onClose }: PickerProps) {
   const tutorials = getTutorialsForRole(role);
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md animate-slideUp overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md animate-slideUp overflow-hidden" style={{ maxHeight: 'calc(100dvh - 24px)', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-5">
           <div className="flex items-center gap-3">
@@ -282,7 +297,7 @@ function TutorialPicker({ role, onSelect, onClose }: PickerProps) {
         </div>
 
         {/* Tutorial list */}
-        <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
+        <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 180px)' }}>
           <p className="text-[10px] uppercase font-mono font-bold text-slate-400 tracking-widest px-1 mb-3">
             Selecciona un tutorial
           </p>

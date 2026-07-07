@@ -187,6 +187,12 @@ export interface VoiceAssistantState {
   error: string | null;
   /** Internal: triggers a submission side-effect via useEffect (not inside setState) */
   pendingSubmit: PendingSubmit | null;
+  /** Waiting for per-field yes/no confirmation before advancing */
+  awaitingFieldConfirm: boolean;
+  /** The parsed value pending user confirmation */
+  pendingFieldValue: string;
+  /** Pending Gemini API query */
+  pendingGeminiQuery: string | null;
 }
 
 export type SubmitHandler = {
@@ -221,6 +227,9 @@ const INITIAL_STATE: VoiceAssistantState = {
   isSupported: false,
   error: null,
   pendingSubmit: null,
+  awaitingFieldConfirm: false,
+  pendingFieldValue: '',
+  pendingGeminiQuery: null,
 };
 
 // ── Symbol normalization ──────────────────────────────────────────────────
@@ -239,6 +248,43 @@ function normalizeDictatedSymbols(text: string): string {
     .replace(/\basterisc[oa]\b/gi, '*')
     .replace(/\bespacio\b/gi, ' ')
     .replace(/\s*([\-\/_.@*])\s*/g, '$1');
+}
+
+// ── Gemini API client ─────────────────────────────────────────────────────
+async function callGeminiAPI(question: string): Promise<string> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    return 'No tengo configurada la clave API de Gemini. Por favor configúrala en el archivo .env como VITE_GEMINI_API_KEY.';
+  }
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: question
+          }]
+        }],
+        systemInstruction: {
+          parts: [{
+            text: "Eres un asistente inteligente para una aplicación móvil y web de construcción y obras. Responde en español de forma muy concisa, directa y amable (máximo dos oraciones)."
+          }]
+        }
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`Gemini API error status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No pude generar una respuesta.';
+  } catch (err) {
+    console.error('Error al llamar a Gemini:', err);
+    return 'Lo siento, tuve un problema de conexión al intentar consultar con Gemini.';
+  }
 }
 
 let msgCounter = 0;
@@ -453,6 +499,29 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
     execute();
   }, [state.pendingSubmit, speak]);
 
+  // ── Handle Gemini API async queries in useEffect ────────────────────────
+  useEffect(() => {
+    if (!state.pendingGeminiQuery) return;
+    const query = state.pendingGeminiQuery;
+
+    const queryGemini = async () => {
+      setState(p => ({ ...p, isProcessing: true }));
+      const answer = await callGeminiAPI(query);
+      setState(p => {
+        const nextMessages = [...p.messages, mkMsg('assistant', answer)];
+        setTimeout(() => speak(answer), 100);
+        return {
+          ...p,
+          isProcessing: false,
+          pendingGeminiQuery: null,
+          messages: nextMessages,
+        };
+      });
+    };
+
+    queryGemini();
+  }, [state.pendingGeminiQuery, speak]);
+
   // Helper to build the final summary
   const buildSummaryConfirm = useCallback((
     prev: VoiceAssistantState,
@@ -470,7 +539,7 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       if (!matchedTask) {
         const noMatchMsg = `No encontré ninguna tarea tuya que contenga "${newData.taskSearch}". ¿Cuál tarea deseas actualizar?`;
         setTimeout(() => speak(noMatchMsg), 100);
-        return { ...prev, messages: [...newMessages, mkMsg('assistant', noMatchMsg)], collectedData: {}, currentFieldIndex: 0 };
+        return { ...prev, messages: [...newMessages, mkMsg('assistant', noMatchMsg)], collectedData: {}, currentFieldIndex: 0, awaitingFieldConfirm: false, pendingFieldValue: '' };
       }
       enrichedData.matchedTaskId = matchedTask.id;
       enrichedData.matchedTaskTitle = matchedTask.title;
@@ -499,6 +568,8 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       messages: [...newMessages, mkMsg('assistant', confirmMsg)],
       collectedData: enrichedData,
       currentFieldIndex: prev.currentFlow.length,
+      awaitingFieldConfirm: false,
+      pendingFieldValue: '',
       flowType: `${prev.flowType}-confirm` as VoiceFlowType,
     };
   }, [speak]);
@@ -521,48 +592,56 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
         let responseText = '';
 
         if (lower.includes('salir') || lower.includes('cerrar') || lower.includes('cancelar')) {
-          return { ...prev, isOpen: false, flowType: 'idle', messages: [], collectedData: {}, currentFieldIndex: 0, currentFlow: [], pendingSubmit: null };
+          return { ...prev, isOpen: false, flowType: 'idle', messages: [], collectedData: {}, currentFieldIndex: 0, currentFlow: [], pendingSubmit: null, awaitingFieldConfirm: false, pendingFieldValue: '' };
         }
+
+        let matchedTrigger = false;
 
         if (role === 'admin') {
           if (lower.includes('obra') || lower.includes('proyecto')) {
-            nextFlow = 'new-project'; nextFields = PROJECT_FLOW;
+            nextFlow = 'new-project'; nextFields = PROJECT_FLOW; matchedTrigger = true;
             responseText = '¡Perfecto! Vamos a registrar una nueva obra. ' + PROJECT_FLOW[0].question;
             setTimeout(() => handlersRef.current.onNavigate?.('projects'), 200);
           } else if (lower.includes('trabajador') || lower.includes('empleado') || lower.includes('personal')) {
-            nextFlow = 'new-worker'; nextFields = WORKER_FLOW;
+            nextFlow = 'new-worker'; nextFields = WORKER_FLOW; matchedTrigger = true;
             responseText = '¡Perfecto! Vamos a registrar un nuevo trabajador. ' + WORKER_FLOW[0].question;
             setTimeout(() => handlersRef.current.onNavigate?.('team'), 200);
           } else if (lower.includes('tarea') || lower.includes('actividad')) {
-            nextFlow = 'new-task'; nextFields = TASK_FLOW;
+            nextFlow = 'new-task'; nextFields = TASK_FLOW; matchedTrigger = true;
             responseText = '¡Perfecto! Vamos a crear una nueva tarea. ' + TASK_FLOW[0].question;
             setTimeout(() => handlersRef.current.onNavigate?.('tasks'), 200);
           } else if (lower.includes('herramienta') || lower.includes('equipo') || lower.includes('inventario') || lower.includes('bodega')) {
-            nextFlow = 'new-tool'; nextFields = TOOL_FLOW;
+            nextFlow = 'new-tool'; nextFields = TOOL_FLOW; matchedTrigger = true;
             responseText = '¡Perfecto! Vamos a registrar una herramienta. ' + TOOL_FLOW[0].question;
             setTimeout(() => handlersRef.current.onNavigate?.('inventory'), 200);
           } else if (lower.includes('gasto') || lower.includes('presupuesto') || lower.includes('pago')) {
-            nextFlow = 'new-expense'; nextFields = EXPENSE_FLOW;
+            nextFlow = 'new-expense'; nextFields = EXPENSE_FLOW; matchedTrigger = true;
             responseText = '¡Perfecto! Vamos a registrar un gasto. ' + EXPENSE_FLOW[0].question;
             setTimeout(() => handlersRef.current.onNavigate?.('budget'), 200);
-          } else {
-            responseText = 'No entendí. Puedes decir: "nueva obra", "nuevo trabajador", "nueva tarea", "nueva herramienta" o "registrar gasto". ¿Qué deseas hacer?';
           }
         } else {
           if (lower.includes('perfil') || lower.includes('teléfono') || lower.includes('especialidad') || lower.includes('mis datos')) {
-            nextFlow = 'worker-profile'; nextFields = WORKER_PROFILE_FLOW;
+            nextFlow = 'worker-profile'; nextFields = WORKER_PROFILE_FLOW; matchedTrigger = true;
             responseText = 'Vamos a actualizar tu información de perfil. ' + WORKER_PROFILE_FLOW[0].question;
           } else if (lower.includes('tarea') || lower.includes('completar') || lower.includes('iniciar') || lower.includes('estado')) {
-            nextFlow = 'worker-task'; nextFields = WORKER_TASK_FLOW;
+            nextFlow = 'worker-task'; nextFields = WORKER_TASK_FLOW; matchedTrigger = true;
             responseText = 'Vamos a actualizar el estado de una de tus tareas. ' + WORKER_TASK_FLOW[0].question;
-          } else {
-            responseText = 'No entendí. Puedes decir: "actualizar perfil" o "actualizar tarea". ¿Qué deseas hacer?';
           }
+        }
+
+        // If no forms are matched, trigger Gemini API query!
+        if (!matchedTrigger) {
+          const thinkingText = 'Dejame consultar con Gemini... 🧠';
+          return {
+            ...prev,
+            messages: newMessages,
+            pendingGeminiQuery: normalized,
+          };
         }
 
         const withAssistant = [...newMessages, mkMsg('assistant', responseText)];
         setTimeout(() => speak(responseText), 100);
-        return { ...prev, flowType: nextFlow, currentFlow: nextFields, currentFieldIndex: 0, collectedData: {}, messages: withAssistant, pendingSubmit: null };
+        return { ...prev, flowType: nextFlow, currentFlow: nextFields, currentFieldIndex: 0, collectedData: {}, messages: withAssistant, pendingSubmit: null, awaitingFieldConfirm: false, pendingFieldValue: '' };
       }
 
       // ── Final confirmation step (entire form) ─────────────────────────
@@ -582,12 +661,61 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
         if (lower.includes('cancelar') || lower.includes('empezar de nuevo') || lower.includes('no')) {
           const cancelMsg = '¡Entendido! Empezamos de nuevo. ¿Qué deseas hacer?';
           setTimeout(() => speak(cancelMsg), 100);
-          return { ...prev, messages: [...newMessages, mkMsg('assistant', cancelMsg)], collectedData: {}, currentFieldIndex: 0, currentFlow: [], flowType: 'menu', pendingSubmit: null };
+          return { ...prev, messages: [...newMessages, mkMsg('assistant', cancelMsg)], collectedData: {}, currentFieldIndex: 0, currentFlow: [], flowType: 'menu', pendingSubmit: null, awaitingFieldConfirm: false, pendingFieldValue: '' };
         }
 
         const remindMsg = 'Di "confirmar" para guardar o "cancelar" para empezar de nuevo.';
         setTimeout(() => speak(remindMsg), 100);
         return { ...prev, messages: [...newMessages, mkMsg('assistant', remindMsg)] };
+      }
+
+      // ── Per-field confirmation step ──────────────────────────────────────
+      if (prev.awaitingFieldConfirm) {
+        const isYes = lower.includes('sí') || lower.includes('si') || lower === 'yes'
+          || lower.includes('correcto') || lower.includes('exacto') || lower.includes('bien')
+          || lower.includes('ok') || lower.includes('adelante') || lower.includes('perfecto');
+        const isNo = lower.includes('no') || lower.includes('incorrecto') || lower.includes('error')
+          || lower.includes('repetir') || lower.includes('cambiar') || lower.includes('mal')
+          || lower.includes('otro') || lower.includes('equivocad');
+
+        const field = prev.currentFlow[prev.currentFieldIndex];
+
+        if (isNo) {
+          const retryMsg = `Repitamos: ${field.question}`;
+          setTimeout(() => speak(retryMsg), 100);
+          return {
+            ...prev,
+            messages: [...newMessages, mkMsg('assistant', retryMsg)],
+            awaitingFieldConfirm: false,
+            pendingFieldValue: '',
+          };
+        }
+
+        if (isYes) {
+          const confirmedValue = prev.pendingFieldValue;
+          const newData = { ...prev.collectedData, [field.key]: confirmedValue };
+          const nextFieldIndex = prev.currentFieldIndex + 1;
+
+          if (nextFieldIndex < prev.currentFlow.length) {
+            const nextQ = prev.currentFlow[nextFieldIndex].question;
+            const nextMsg = `Guardado. Siguiente campo: ${nextQ}`;
+            setTimeout(() => speak(nextMsg), 100);
+            return {
+              ...prev,
+              messages: [...newMessages, mkMsg('assistant', nextMsg)],
+              collectedData: newData,
+              currentFieldIndex: nextFieldIndex,
+              awaitingFieldConfirm: false,
+              pendingFieldValue: '',
+            };
+          }
+
+          return buildSummaryConfirm({ ...prev, currentFieldIndex: nextFieldIndex }, newData, newMessages);
+        }
+
+        const hint = `¿Es correcto "${prev.pendingFieldValue}"? Por favor responde "sí" o "no".`;
+        setTimeout(() => speak(hint), 100);
+        return { ...prev, messages: [...newMessages, mkMsg('assistant', hint)] };
       }
 
       // ── Active flow: collect a field value sequentially ──────────────────
@@ -611,22 +739,16 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
           value = normalizeOptional(normalized, field);
         }
 
-        const newData = { ...prev.collectedData, [field.key]: value };
-        const nextFieldIndex = prev.currentFieldIndex + 1;
+        const displayValue = field.type === 'date' ? value : value || '(vacío)';
 
-        if (nextFieldIndex < prev.currentFlow.length) {
-          const nextQ = prev.currentFlow[nextFieldIndex].question;
-          const confirmMsg = `Entendido. Siguiente campo: ${nextQ}`;
-          setTimeout(() => speak(confirmMsg), 100);
-          return {
-            ...prev,
-            messages: [...newMessages, mkMsg('assistant', confirmMsg)],
-            collectedData: newData,
-            currentFieldIndex: nextFieldIndex,
-          };
-        }
-
-        return buildSummaryConfirm({ ...prev, currentFieldIndex: nextFieldIndex }, newData, newMessages);
+        const askConfirmMsg = `¿"${displayValue}" es correcto?`;
+        setTimeout(() => speak(askConfirmMsg), 100);
+        return {
+          ...prev,
+          messages: [...newMessages, mkMsg('assistant', askConfirmMsg)],
+          awaitingFieldConfirm: true,
+          pendingFieldValue: value,
+        };
       }
 
       return { ...prev, messages: newMessages };
@@ -639,8 +761,8 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
   const open = useCallback(() => {
     const role = handlersRef.current.role || 'admin';
     const greeting = role === 'admin'
-      ? '¡Hola! Soy tu asistente de voz. ¿Qué deseas hacer? Puedes decir: nueva obra, nuevo trabajador, nueva tarea o registrar gasto.'
-      : '¡Hola! Soy tu asistente de voz. ¿Qué deseas hacer? Puedes decir: actualizar perfil o actualizar tarea.';
+      ? '¡Hola! Soy tu asistente de voz. ¿Qué deseas hacer? Puedes decir: nueva obra, nuevo trabajador, nueva tarea o registrar gasto. También puedes hacerme preguntas generales.'
+      : '¡Hola! Soy tu asistente de voz. ¿Qué deseas hacer? Puedes decir: actualizar perfil o actualizar tarea. También puedes hacerme preguntas generales.';
 
     setState(p => ({
       ...p,
@@ -651,6 +773,9 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       currentFieldIndex: 0,
       currentFlow: [],
       pendingSubmit: null,
+      awaitingFieldConfirm: false,
+      pendingFieldValue: '',
+      pendingGeminiQuery: null,
     }));
     setTimeout(() => speak(greeting), 300);
   }, [speak]);
