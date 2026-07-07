@@ -145,9 +145,13 @@ function TutorialTooltip({
     const spotCenterX = spotLeft + rect.width / 2;
     const spotCenterY = spotTop + rect.height / 2;
 
-    // On mobile (vw < 480), always prefer bottom or center to avoid off-screen
-    const isMobile = vw < 480;
-    const effectivePosition = isMobile && (position === 'right' || position === 'left') ? 'bottom' : position;
+    // On mobile/tablet (vw < 768), avoid left/right positions entirely.
+    // Place tooltip top or bottom of the spotlight depending on where the spotlight is located.
+    const isMobile = vw < 768;
+    let effectivePosition = position;
+    if (isMobile && (position === 'right' || position === 'left')) {
+      effectivePosition = spotCenterY > vh / 2 ? 'top' : 'bottom';
+    }
 
     switch (effectivePosition) {
       case 'bottom':

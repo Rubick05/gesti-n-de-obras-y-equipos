@@ -151,24 +151,6 @@ function matchSelect(text: string, options: string[]): string | null {
   for (const opt of options) {
     if (lower.includes(opt) || opt.includes(lower)) return opt;
   }
-  const aliases: Record<string, string> = {
-    'mano de obra': 'mano_de_obra',
-    'mano obra': 'mano_de_obra',
-    'urgente': 'critica',
-    'crítica': 'critica',
-    'pendiente': 'pendiente',
-    'en progreso': 'en_progreso',
-    'progreso': 'en_progreso',
-    'completada': 'completada',
-    'completar': 'completada',
-    'hecha': 'completada',
-    'hecho': 'completada',
-    'terminada': 'completada',
-    'terminado': 'completada',
-  };
-  for (const [alias, val] of Object.entries(aliases)) {
-    if (lower.includes(alias)) return val;
-  }
   return null;
 }
 
@@ -187,21 +169,23 @@ export interface VoiceAssistantState {
   error: string | null;
   /** Internal: triggers a submission side-effect via useEffect (not inside setState) */
   pendingSubmit: PendingSubmit | null;
-  /** Waiting for per-field yes/no confirmation before advancing */
+  /** Waiting for per-field yes/no confirmation before advancing (deprecated/unused but kept for type compatibility) */
   awaitingFieldConfirm: boolean;
   /** The parsed value pending user confirmation */
   pendingFieldValue: string;
   /** Pending Gemini API query */
   pendingGeminiQuery: string | null;
+  /** Currently selected field to modify at the final confirmation step */
+  modifyingField: FlowField | null;
 }
 
 export type SubmitHandler = {
   // admin views
-  onAddProject?: (data: any) => void | Promise<void>;
-  onAddWorker?: (data: any) => void | Promise<void>;
-  onAddTask?: (data: any) => void | Promise<void>;
-  onAddTool?: (data: any) => void | Promise<void>;
-  onAddExpense?: (data: any) => void | Promise<void>;
+  onAddProject?: (data: any) => void | Promise<any>;
+  onAddWorker?: (data: any) => void | Promise<any>;
+  onAddTask?: (data: any) => void | Promise<any>;
+  onAddTool?: (data: any) => void | Promise<any>;
+  onAddExpense?: (data: any) => void | Promise<any>;
   // worker portal
   onUpdateWorker?: (data: any) => void | Promise<boolean>;
   onUpdateTaskStatus?: (taskId: string, status: any) => void | Promise<boolean>;
@@ -230,6 +214,7 @@ const INITIAL_STATE: VoiceAssistantState = {
   awaitingFieldConfirm: false,
   pendingFieldValue: '',
   pendingGeminiQuery: null,
+  modifyingField: null,
 };
 
 // ── Symbol normalization ──────────────────────────────────────────────────
@@ -250,11 +235,78 @@ function normalizeDictatedSymbols(text: string): string {
     .replace(/\s*([\-\/_.@*])\s*/g, '$1');
 }
 
+// ── Field labels and find helper ──────────────────────────────────────────
+const FIELD_LABELS: Record<string, string> = {
+  name: 'Nombre',
+  code: 'Código',
+  location: 'Ubicación',
+  startDate: 'Fecha de Inicio',
+  endDate: 'Fecha de Fin',
+  budget: 'Presupuesto',
+  description: 'Descripción',
+  role: 'Cargo',
+  email: 'Correo',
+  phone: 'Teléfono',
+  specialty: 'Especialidad',
+  title: 'Título',
+  project: 'Proyecto',
+  assignedWorker: 'Trabajador',
+  priority: 'Prioridad',
+  dueDate: 'Fecha Límite',
+  brand: 'Marca',
+  serialNumber: 'Número de Serie',
+  category: 'Categoría',
+  amount: 'Monto',
+  authorizedBy: 'Autorizado Por',
+  taskSearch: 'Tarea a Buscar',
+  status: 'Estado',
+};
+
+function findFieldToModify(text: string, flow: FlowField[]): FlowField | null {
+  const lower = text.toLowerCase();
+  for (const field of flow) {
+    const key = field.key.toLowerCase();
+    const aliases: Record<string, string[]> = {
+      name: ['nombre', 'obra', 'proyecto', 'trabajador', 'herramienta', 'título', 'titulo', 'nombre de la obra'],
+      code: ['código', 'codigo', 'identificador'],
+      location: ['ubicación', 'ubicacion', 'dirección', 'direccion', 'dónde', 'donde', 'lugar'],
+      startDate: ['fecha de inicio', 'inicia', 'inicio', 'fecha inicio', 'comienza'],
+      endDate: ['fecha de finalización', 'fin', 'finalización', 'finalizacion', 'termina', 'termino', 'fecha fin'],
+      budget: ['presupuesto', 'monto', 'pesos', 'dinero'],
+      description: ['descripción', 'descripcion', 'detalle'],
+      role: ['cargo', 'puesto', 'rol'],
+      email: ['correo', 'email', 'e-mail'],
+      phone: ['teléfono', 'telefono', 'celular', 'número', 'numero'],
+      specialty: ['especialidad', 'técnica', 'tecnica'],
+      title: ['título', 'titulo', 'nombre de la tarea'],
+      project: ['obra', 'proyecto'],
+      assignedWorker: ['trabajador', 'asignado', 'quién', 'quien'],
+      priority: ['prioridad', 'importancia'],
+      dueDate: ['fecha', 'límite', 'limite', 'para cuándo', 'para cuando'],
+      brand: ['marca'],
+      serialNumber: ['serie', 'número de serie', 'numero de serie'],
+      category: ['categoría', 'categoria'],
+      amount: ['monto', 'cantidad', 'dinero', 'pesos'],
+      authorizedBy: ['autoriza', 'autorizado', 'quién autoriza'],
+      taskSearch: ['tarea', 'búsqueda', 'busqueda'],
+      status: ['estado'],
+    };
+    const words = aliases[field.key] || [key];
+    if (words.some(w => lower.includes(w))) {
+      return field;
+    }
+  }
+  return null;
+}
+
 // ── Gemini API client ─────────────────────────────────────────────────────
 async function callGeminiAPI(question: string): Promise<string> {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     return 'No tengo configurada la clave API de Gemini. Por favor configúrala en el archivo .env como VITE_GEMINI_API_KEY.';
+  }
+  if (!apiKey.startsWith('AIzaSy')) {
+    return `La clave de API de Gemini configurada ("${apiKey.substring(0, 8)}...") parece inválida. Recuerda que las claves de Google AI Studio siempre comienzan con "AIzaSy". Obtén una clave gratis en https://aistudio.google.com/app/apikey`;
   }
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
@@ -283,7 +335,7 @@ async function callGeminiAPI(question: string): Promise<string> {
     return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No pude generar una respuesta.';
   } catch (err) {
     console.error('Error al llamar a Gemini:', err);
-    return 'Lo siento, tuve un problema de conexión al intentar consultar con Gemini.';
+    return 'Lo siento, tuve un problema de conexión al intentar consultar con Gemini. Por favor verifica que tu API Key sea correcta.';
   }
 }
 
@@ -291,7 +343,6 @@ let msgCounter = 0;
 function mkMsg(role: 'assistant' | 'user', text: string): ChatMessage {
   return { id: `msg-${++msgCounter}`, role, text, timestamp: new Date() };
 }
-
 // ── Main Hook ─────────────────────────────────────────────────────────────
 export function useVoiceAssistant(handlers: SubmitHandler) {
   const [state, setState] = useState<VoiceAssistantState>({
@@ -408,8 +459,9 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
 
     const execute = async () => {
       try {
+        let result: any = true;
         if (baseFlow === 'new-project' && h.onAddProject) {
-          await h.onAddProject({
+          result = await h.onAddProject({
             name: data.name || 'Sin nombre',
             code: data.code || 'COD-001',
             location: data.location || '',
@@ -420,7 +472,7 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
             status: 'planificacion',
           });
         } else if (baseFlow === 'new-worker' && h.onAddWorker) {
-          await h.onAddWorker({
+          result = await h.onAddWorker({
             name: data.name || '',
             role: data.role || '',
             email: data.email || '',
@@ -435,7 +487,7 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
             const matchedWorker = (h.workers || []).find(w => w.name.toLowerCase().includes(workerQuery));
             if (matchedWorker) assignedWorkerId = matchedWorker.id;
           }
-          await h.onAddTask({
+          result = await h.onAddTask({
             title: data.title || '',
             description: data.description || '',
             priority: (data.priority as any) || 'media',
@@ -445,7 +497,7 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
             projectId: data.projectId || '',
           });
         } else if (baseFlow === 'new-tool' && h.onAddTool) {
-          await h.onAddTool({
+          result = await h.onAddTool({
             name: data.name || '',
             code: data.code || '',
             brand: data.brand || '',
@@ -455,7 +507,7 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
             status: 'disponible',
           });
         } else if (baseFlow === 'new-expense' && h.onAddExpense) {
-          await h.onAddExpense({
+          result = await h.onAddExpense({
             category: (data.category as any) || 'otro',
             amount: parseFloat(data.amount) || 0,
             description: data.description || '',
@@ -466,10 +518,14 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
         } else if (baseFlow === 'worker-profile' && h.onUpdateWorker) {
           const currentWorker = (h.workers || []).find(w => w.id === h.currentWorkerId);
           if (currentWorker) {
-            await h.onUpdateWorker({ ...currentWorker, phone: data.phone, specialty: data.specialty });
+            result = await h.onUpdateWorker({ ...currentWorker, phone: data.phone, specialty: data.specialty });
           }
         } else if (baseFlow === 'worker-task' && h.onUpdateTaskStatus && data.matchedTaskId) {
-          await h.onUpdateTaskStatus(data.matchedTaskId, data.status as any);
+          result = await h.onUpdateTaskStatus(data.matchedTaskId, data.status as any);
+        }
+
+        if (result === null || result === false) {
+          throw new Error('La base de datos retornó un resultado nulo o fallido (por ejemplo, el código puede estar duplicado).');
         }
 
         const successMsg = '¡Guardado correctamente! ¿Deseas registrar algo más? Puedes decírmelo o di "salir" para cerrar.';
@@ -484,8 +540,9 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
         }));
         setTimeout(() => speak(successMsg), 100);
 
-      } catch (err) {
-        const errMsg = 'Hubo un error al guardar los datos. Por favor intenta de nuevo.';
+      } catch (err: any) {
+        console.error('Error al guardar datos:', err);
+        const errMsg = `Hubo un error al guardar: ${err.message || 'Error desconocido'}. Asegúrate de que el código no esté duplicado e intenta de nuevo.`;
         setState(p => ({
           ...p,
           pendingSubmit: null,
@@ -539,7 +596,15 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       if (!matchedTask) {
         const noMatchMsg = `No encontré ninguna tarea tuya que contenga "${newData.taskSearch}". ¿Cuál tarea deseas actualizar?`;
         setTimeout(() => speak(noMatchMsg), 100);
-        return { ...prev, messages: [...newMessages, mkMsg('assistant', noMatchMsg)], collectedData: {}, currentFieldIndex: 0, awaitingFieldConfirm: false, pendingFieldValue: '' };
+        return {
+          ...prev,
+          messages: [...newMessages, mkMsg('assistant', noMatchMsg)],
+          collectedData: {},
+          currentFieldIndex: 0,
+          awaitingFieldConfirm: false,
+          pendingFieldValue: '',
+          modifyingField: null
+        };
       }
       enrichedData.matchedTaskId = matchedTask.id;
       enrichedData.matchedTaskTitle = matchedTask.title;
@@ -551,18 +616,25 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       );
       enrichedData.projectId = matchedProj?.id || (handlersRef.current.projects || [])[0]?.id || '';
       enrichedData.projectMatchedName = matchedProj?.name || (handlersRef.current.projects || [])[0]?.name || 'sin proyecto';
+      
       summaryLines = Object.entries(enrichedData)
-        .filter(([k]) => !['projectId'].includes(k))
-        .map(([k, v]) => v ? `${k}: ${v}` : '')
-        .filter(Boolean);
+        .filter(([k]) => !['projectId', 'projectMatchedName', 'matchedTaskId', 'matchedTaskTitle'].includes(k))
+        .map(([k, v]) => `${FIELD_LABELS[k] || k}: ${v || '(vacío)'}`);
+      if (enrichedData.projectMatchedName) {
+        summaryLines.push(`Proyecto: ${enrichedData.projectMatchedName}`);
+      }
     } else {
       summaryLines = Object.entries(enrichedData)
-        .map(([k, v]) => v ? `${k}: ${v}` : '')
-        .filter(Boolean);
+        .filter(([k]) => !['projectId', 'projectMatchedName', 'matchedTaskId', 'matchedTaskTitle'].includes(k))
+        .map(([k, v]) => `${FIELD_LABELS[k] || k}: ${v || '(vacío)'}`);
     }
 
-    const confirmMsg = `¡Perfecto! Di "confirmar" para guardar o "cancelar" para reiniciar. Resumen: ${summaryLines.join(', ')}.`;
+    const confirmMsg = `Hemos completado los datos. Resumen:\n${summaryLines.join(', ')}.\n\n¿Deseas "confirmar" para guardar, "cancelar" para reiniciar, o deseas "cambiar [campo]" (por ejemplo, "cambiar presupuesto")?`;
     setTimeout(() => speak(confirmMsg), 100);
+    
+    // Determine target confirm flow name
+    const targetFlow = prev.flowType.endsWith('-confirm') ? prev.flowType : `${prev.flowType}-confirm` as VoiceFlowType;
+
     return {
       ...prev,
       messages: [...newMessages, mkMsg('assistant', confirmMsg)],
@@ -570,7 +642,8 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       currentFieldIndex: prev.currentFlow.length,
       awaitingFieldConfirm: false,
       pendingFieldValue: '',
-      flowType: `${prev.flowType}-confirm` as VoiceFlowType,
+      modifyingField: null,
+      flowType: targetFlow,
     };
   }, [speak]);
 
@@ -584,6 +657,35 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       const newMessages = [...prev.messages, mkMsg('user', normalized)];
       const lower = normalized.toLowerCase();
 
+      // ── MODIFY FIELD MODE ───────────────────────────────────────────────
+      if (prev.modifyingField) {
+        const field = prev.modifyingField;
+        let value = normalized;
+
+        if (field.type === 'date') {
+          value = parseDate(normalized);
+        } else if (field.type === 'number') {
+          value = String(parseNumber(normalized));
+        } else if (field.type === 'select' && field.options) {
+          const matched = matchSelect(normalized, field.options);
+          if (!matched) {
+            const errMsg = `No reconocí esa opción. Por favor di una de estas: ${field.options.join(', ')}.`;
+            setTimeout(() => speak(errMsg), 100);
+            return { ...prev, messages: [...newMessages, mkMsg('assistant', errMsg)] };
+          }
+          value = matched;
+        } else if (field.optional) {
+          value = normalizeOptional(normalized, field);
+        }
+
+        const newData = { ...prev.collectedData, [field.key]: value };
+        const confirmText = `Entendido. He cambiado ${FIELD_LABELS[field.key] || field.key} a "${value}".`;
+        const updatedMessages = [...newMessages, mkMsg('assistant', confirmText)];
+
+        // Return back to final confirmation screen with the updated data
+        return buildSummaryConfirm({ ...prev, modifyingField: null }, newData, updatedMessages);
+      }
+
       // ── MENU / idle ─────────────────────────────────────────────────────
       if (prev.flowType === 'idle' || prev.flowType === 'menu') {
         const role = handlersRef.current.role || 'admin';
@@ -592,7 +694,7 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
         let responseText = '';
 
         if (lower.includes('salir') || lower.includes('cerrar') || lower.includes('cancelar')) {
-          return { ...prev, isOpen: false, flowType: 'idle', messages: [], collectedData: {}, currentFieldIndex: 0, currentFlow: [], pendingSubmit: null, awaitingFieldConfirm: false, pendingFieldValue: '' };
+          return { ...prev, isOpen: false, flowType: 'idle', messages: [], collectedData: {}, currentFieldIndex: 0, currentFlow: [], pendingSubmit: null, awaitingFieldConfirm: false, pendingFieldValue: '', modifyingField: null };
         }
 
         let matchedTrigger = false;
@@ -631,7 +733,6 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
 
         // If no forms are matched, trigger Gemini API query!
         if (!matchedTrigger) {
-          const thinkingText = 'Dejame consultar con Gemini... 🧠';
           return {
             ...prev,
             messages: newMessages,
@@ -641,13 +742,14 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
 
         const withAssistant = [...newMessages, mkMsg('assistant', responseText)];
         setTimeout(() => speak(responseText), 100);
-        return { ...prev, flowType: nextFlow, currentFlow: nextFields, currentFieldIndex: 0, collectedData: {}, messages: withAssistant, pendingSubmit: null, awaitingFieldConfirm: false, pendingFieldValue: '' };
+        return { ...prev, flowType: nextFlow, currentFlow: nextFields, currentFieldIndex: 0, collectedData: {}, messages: withAssistant, pendingSubmit: null, awaitingFieldConfirm: false, pendingFieldValue: '', modifyingField: null };
       }
 
       // ── Final confirmation step (entire form) ─────────────────────────
       if (prev.flowType.endsWith('-confirm')) {
         const baseFlow = prev.flowType.replace('-confirm', '') as VoiceFlowType;
 
+        // Check if user wants to CONFIRM
         if (lower.includes('confirmar') || lower.includes('sí') || lower.includes('si') || lower.includes('guardar') || lower.includes('adelante') || lower.includes('correcto')) {
           const savingMsg = 'Guardando los datos, un momento...';
           setTimeout(() => speak(savingMsg), 100);
@@ -658,64 +760,36 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
           };
         }
 
+        // Check if user wants to CANCEL
         if (lower.includes('cancelar') || lower.includes('empezar de nuevo') || lower.includes('no')) {
           const cancelMsg = '¡Entendido! Empezamos de nuevo. ¿Qué deseas hacer?';
           setTimeout(() => speak(cancelMsg), 100);
-          return { ...prev, messages: [...newMessages, mkMsg('assistant', cancelMsg)], collectedData: {}, currentFieldIndex: 0, currentFlow: [], flowType: 'menu', pendingSubmit: null, awaitingFieldConfirm: false, pendingFieldValue: '' };
+          return { ...prev, messages: [...newMessages, mkMsg('assistant', cancelMsg)], collectedData: {}, currentFieldIndex: 0, currentFlow: [], flowType: 'menu', pendingSubmit: null, awaitingFieldConfirm: false, pendingFieldValue: '', modifyingField: null };
         }
 
-        const remindMsg = 'Di "confirmar" para guardar o "cancelar" para empezar de nuevo.';
-        setTimeout(() => speak(remindMsg), 100);
-        return { ...prev, messages: [...newMessages, mkMsg('assistant', remindMsg)] };
-      }
-
-      // ── Per-field confirmation step ──────────────────────────────────────
-      if (prev.awaitingFieldConfirm) {
-        const isYes = lower.includes('sí') || lower.includes('si') || lower === 'yes'
-          || lower.includes('correcto') || lower.includes('exacto') || lower.includes('bien')
-          || lower.includes('ok') || lower.includes('adelante') || lower.includes('perfecto');
-        const isNo = lower.includes('no') || lower.includes('incorrecto') || lower.includes('error')
-          || lower.includes('repetir') || lower.includes('cambiar') || lower.includes('mal')
-          || lower.includes('otro') || lower.includes('equivocad');
-
-        const field = prev.currentFlow[prev.currentFieldIndex];
-
-        if (isNo) {
-          const retryMsg = `Repitamos: ${field.question}`;
-          setTimeout(() => speak(retryMsg), 100);
+        // Check if user wants to MODIFY a field (e.g. "cambiar presupuesto" or "nombre")
+        const fieldToModify = findFieldToModify(lower, prev.currentFlow);
+        if (fieldToModify) {
+          const askMsg = `Entendido. ¿Cuál es el nuevo valor para "${FIELD_LABELS[fieldToModify.key] || fieldToModify.key}"?`;
+          setTimeout(() => speak(askMsg), 100);
           return {
             ...prev,
-            messages: [...newMessages, mkMsg('assistant', retryMsg)],
-            awaitingFieldConfirm: false,
-            pendingFieldValue: '',
+            messages: [...newMessages, mkMsg('assistant', askMsg)],
+            modifyingField: fieldToModify,
           };
         }
 
-        if (isYes) {
-          const confirmedValue = prev.pendingFieldValue;
-          const newData = { ...prev.collectedData, [field.key]: confirmedValue };
-          const nextFieldIndex = prev.currentFieldIndex + 1;
-
-          if (nextFieldIndex < prev.currentFlow.length) {
-            const nextQ = prev.currentFlow[nextFieldIndex].question;
-            const nextMsg = `Guardado. Siguiente campo: ${nextQ}`;
-            setTimeout(() => speak(nextMsg), 100);
-            return {
-              ...prev,
-              messages: [...newMessages, mkMsg('assistant', nextMsg)],
-              collectedData: newData,
-              currentFieldIndex: nextFieldIndex,
-              awaitingFieldConfirm: false,
-              pendingFieldValue: '',
-            };
-          }
-
-          return buildSummaryConfirm({ ...prev, currentFieldIndex: nextFieldIndex }, newData, newMessages);
+        // User typed modify/change words but we couldn't match a field
+        if (lower.includes('cambiar') || lower.includes('modificar') || lower.includes('corregir') || lower.includes('editar')) {
+          const fieldsList = prev.currentFlow.map(f => FIELD_LABELS[f.key] || f.key).join(', ');
+          const helpMsg = `No entendí qué campo deseas cambiar. Los campos de este formulario son: ${fieldsList}. Di algo como "cambiar ${FIELD_LABELS[prev.currentFlow[0].key]}".`;
+          setTimeout(() => speak(helpMsg), 100);
+          return { ...prev, messages: [...newMessages, mkMsg('assistant', helpMsg)] };
         }
 
-        const hint = `¿Es correcto "${prev.pendingFieldValue}"? Por favor responde "sí" o "no".`;
-        setTimeout(() => speak(hint), 100);
-        return { ...prev, messages: [...newMessages, mkMsg('assistant', hint)] };
+        const remindMsg = 'Di "confirmar" para guardar, "cancelar" para reiniciar, o indica cuál campo deseas modificar diciendo "cambiar [campo]".';
+        setTimeout(() => speak(remindMsg), 100);
+        return { ...prev, messages: [...newMessages, mkMsg('assistant', remindMsg)] };
       }
 
       // ── Active flow: collect a field value sequentially ──────────────────
@@ -739,16 +813,25 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
           value = normalizeOptional(normalized, field);
         }
 
-        const displayValue = field.type === 'date' ? value : value || '(vacío)';
+        const newData = { ...prev.collectedData, [field.key]: value };
+        const nextFieldIndex = prev.currentFieldIndex + 1;
 
-        const askConfirmMsg = `¿"${displayValue}" es correcto?`;
-        setTimeout(() => speak(askConfirmMsg), 100);
-        return {
-          ...prev,
-          messages: [...newMessages, mkMsg('assistant', askConfirmMsg)],
-          awaitingFieldConfirm: true,
-          pendingFieldValue: value,
-        };
+        if (nextFieldIndex < prev.currentFlow.length) {
+          const nextQ = prev.currentFlow[nextFieldIndex].question;
+          setTimeout(() => speak(nextQ), 100);
+          return {
+            ...prev,
+            messages: [...newMessages, mkMsg('assistant', nextQ)],
+            collectedData: newData,
+            currentFieldIndex: nextFieldIndex,
+            awaitingFieldConfirm: false,
+            pendingFieldValue: '',
+            modifyingField: null
+          };
+        }
+
+        // We finished the flow fields! Show final summary
+        return buildSummaryConfirm(prev, newData, newMessages);
       }
 
       return { ...prev, messages: newMessages };
@@ -776,6 +859,7 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       awaitingFieldConfirm: false,
       pendingFieldValue: '',
       pendingGeminiQuery: null,
+      modifyingField: null,
     }));
     setTimeout(() => speak(greeting), 300);
   }, [speak]);

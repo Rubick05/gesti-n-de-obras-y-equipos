@@ -162,11 +162,34 @@ function AdminApp() {
   } = useTutorial((view) => setActiveView(view as AdminView));
 
   const voiceAssistant = useVoiceAssistant({
-    onAddProject: handleAddProject,
-    onAddWorker: handleAddWorker,
-    onAddTask: handleAddTask,
-    onAddTool: handleAddTool,
-    onAddExpense: handleAddExpense,
+    onAddProject: async (proj) => {
+      const created = await addProject(proj);
+      if (created) addLog('project', 'Obra Registrada', created.name, `Código: ${created.code}. Presupuesto: $${created.budget.toLocaleString()}`, profile?.id);
+      return created;
+    },
+    onAddWorker: async (w) => {
+      const created = await addWorker(w);
+      if (created) addLog('worker', 'Personal Registrado', created.name, `Puesto: ${created.role}`, profile?.id);
+      return created;
+    },
+    onAddTask: async (t) => {
+      const created = await addTask(t);
+      if (created) addLog('task', 'Tarea Asignada', created.title, `Prioridad: ${created.priority}`, profile?.id);
+      return created;
+    },
+    onAddTool: async (tool) => {
+      const created = await addTool(tool);
+      if (created) addLog('tool', 'Herramienta Inventariada', created.name, `Código: ${created.code}`, profile?.id);
+      return created;
+    },
+    onAddExpense: async (expense) => {
+      const created = await addExpense(expense);
+      if (created) {
+        const proj = projects.find(p => p.id === expense.projectId);
+        addLog('expense', 'Gasto Registrado', proj?.name ?? 'Proyecto', `$${expense.amount.toLocaleString()} — ${expense.category}`, profile?.id);
+      }
+      return created;
+    },
     onNavigate: (view) => setActiveView(view as AdminView),
     projects,
     workers,
