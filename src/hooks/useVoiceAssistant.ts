@@ -271,11 +271,16 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
       setState(p => ({ ...p, isSpeaking: false }));
       onEnd?.();
     };
-    utt.onerror = () => setState(p => ({ ...p, isSpeaking: false }));
+    utt.onerror = (e) => {
+      console.warn('SpeechSynthesis error:', e);
+      setState(p => ({ ...p, isSpeaking: false }));
+      onEnd?.();
+    };
     window.speechSynthesis.speak(utt);
   }, []);
 
   const stopListening = useCallback(() => {
+    console.log('VoiceAssistant: Stop listening requested');
     try { recognitionRef.current?.stop(); } catch { /* ignore */ }
     recognitionRef.current = null;
     setState(p => ({ ...p, isListening: false }));
@@ -290,6 +295,7 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
 
     try { recognitionRef.current?.stop(); } catch { /* ignore */ }
 
+    console.log('VoiceAssistant: Initializing SpeechRecognition');
     const recognition = new SpeechRecognition();
     recognition.lang = 'es-ES';
     recognition.continuous = false;
@@ -297,28 +303,41 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
     recognition.maxAlternatives = 1;
     recognitionRef.current = recognition;
 
-    recognition.onstart = () => setState(p => ({ ...p, isListening: true, error: null }));
-    recognition.onend = () => setState(p => ({ ...p, isListening: false }));
+    recognition.onstart = () => {
+      console.log('VoiceAssistant: Microphone started recording (onstart)');
+      setState(p => ({ ...p, isListening: true, error: null }));
+    };
+    
+    recognition.onend = () => {
+      console.log('VoiceAssistant: Microphone stopped recording (onend)');
+      setState(p => ({ ...p, isListening: false }));
+    };
+    
     recognition.onerror = (e: any) => {
+      console.error('VoiceAssistant: Recognition error event:', e.error, e);
       let errMsg = '';
       switch (e.error) {
         case 'not-allowed':
-          errMsg = 'Permiso de micrófono denegado. Permite el acceso al micrófono en tu navegador.';
+          errMsg = 'Permiso de micrófono denegado. Haz clic en el candado de la barra de direcciones y activa el micrófono.';
           break;
         case 'no-speech':
-          errMsg = 'No escuché nada. Intenta de nuevo hablando más fuerte.';
+          errMsg = 'No se detectó voz. Asegúrate de hablar fuerte y de que tu micrófono predeterminado esté bien configurado.';
           break;
         case 'network':
-          errMsg = 'Error de red al procesar voz. Verifica tu conexión.';
+          errMsg = 'Error de red al procesar voz. Verifica tu conexión de red o de internet.';
+          break;
+        case 'service-not-allowed':
+          errMsg = 'Servicio de reconocimiento de voz no permitido por el navegador o red corporativa.';
           break;
         default:
-          errMsg = `Error de voz: ${e.error}. Intenta de nuevo.`;
+          errMsg = `Error de micrófono: ${e.error}. Revisa la configuración de tu sistema.`;
       }
       setState(p => ({ ...p, isListening: false, error: errMsg }));
     };
 
     recognition.onresult = (e: any) => {
       const transcript = e.results[0][0].transcript.trim();
+      console.log('VoiceAssistant: Heard speech result:', transcript);
       if (transcript) {
         processInputRef.current(transcript);
       }
@@ -326,9 +345,11 @@ export function useVoiceAssistant(handlers: SubmitHandler) {
 
     setState(p => ({ ...p, isListening: true, error: null }));
     try {
+      console.log('VoiceAssistant: Starting recognition instance...');
       recognition.start();
     } catch (err) {
-      setState(p => ({ ...p, isListening: false, error: 'No se pudo iniciar el micrófono. Verifica los permisos.' }));
+      console.error('VoiceAssistant: Exception when running recognition.start():', err);
+      setState(p => ({ ...p, isListening: false, error: 'No se pudo iniciar el micrófono. Revisa los permisos de tu navegador.' }));
     }
   }, []);
 
