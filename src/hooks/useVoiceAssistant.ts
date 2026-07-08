@@ -309,7 +309,7 @@ async function callGeminiAPI(question: string): Promise<string> {
     return `La clave de API de Gemini configurada ("${apiKey.substring(0, 8)}...") parece inválida. Recuerda que las claves de Google AI Studio comienzan con "AIzaSy" o "AQ.". Obtén una clave gratis en https://aistudio.google.com/app/apikey`;
   }
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
