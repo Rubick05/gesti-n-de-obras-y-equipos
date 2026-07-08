@@ -305,8 +305,8 @@ async function callGeminiAPI(question: string): Promise<string> {
   if (!apiKey) {
     return 'No tengo configurada la clave API de Gemini. Por favor configúrala en el archivo .env como VITE_GEMINI_API_KEY.';
   }
-  if (!apiKey.startsWith('AIzaSy')) {
-    return `La clave de API de Gemini configurada ("${apiKey.substring(0, 8)}...") parece inválida. Recuerda que las claves de Google AI Studio siempre comienzan con "AIzaSy". Obtén una clave gratis en https://aistudio.google.com/app/apikey`;
+  if (!apiKey.startsWith('AIzaSy') && !apiKey.startsWith('AQ.')) {
+    return `La clave de API de Gemini configurada ("${apiKey.substring(0, 8)}...") parece inválida. Recuerda que las claves de Google AI Studio comienzan con "AIzaSy" o "AQ.". Obtén una clave gratis en https://aistudio.google.com/app/apikey`;
   }
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
