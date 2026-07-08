@@ -50,9 +50,13 @@ export function useTutorial(onNavigate?: (view: string) => void) {
     if (!step.noSpotlight) {
       const timer = setTimeout(() => {
         // Try multiple selectors (comma-separated)
+        const isMobile = window.innerWidth < 768;
         const selectors = step.target.split(',').map(s => s.trim());
-        for (const sel of selectors) {
+        for (let sel of selectors) {
           try {
+            if (isMobile && sel.includes('btn-nav-desktop')) {
+              sel = '#btn-toggle-mobile-menu';
+            }
             const el = document.querySelector(sel);
             if (el) {
               el.scrollIntoView({ behavior: 'smooth', block: 'center' });

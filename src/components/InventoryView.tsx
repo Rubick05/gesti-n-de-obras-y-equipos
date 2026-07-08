@@ -301,7 +301,7 @@ export default function InventoryView({
           <button
             onClick={handleOpenToolForm}
             className="bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg flex items-center gap-1.5 transition shadow-sm cursor-pointer"
-            id="btn-new-tool"
+            id="btn-add-tool"
           >
             <Plus className="h-4 w-4" /> Registrar Equipo
           </button>
@@ -483,7 +483,7 @@ export default function InventoryView({
 
                 {/* FORMULARIO DE DETALLES */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
+                  <div id="tool-form-name">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Nombre del Equipo *</label>
                     <input
                       required
@@ -495,7 +495,7 @@ export default function InventoryView({
                     />
                   </div>
 
-                  <div>
+                  <div id="tool-form-code">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Código Único (Ficha/SKU) *</label>
                     <input
                       required
@@ -507,7 +507,7 @@ export default function InventoryView({
                     />
                   </div>
 
-                  <div>
+                  <div id="tool-form-category">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Categoría del Equipo *</label>
                     <select
                       value={category}
@@ -806,7 +806,7 @@ export default function InventoryView({
                         {tool.status === 'disponible' ? (
                           <button
                             onClick={() => handleOpenCheckout(tool.id)}
-                            className="bg-slate-900 text-white hover:bg-slate-800 px-3.5 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                            className="btn-borrow-tool bg-slate-900 text-white hover:bg-slate-800 px-3.5 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 transition cursor-pointer shadow-2xs"
                             id={`btn-borrow-tool-${tool.id}`}
                           >
                             <Unlock className="h-3.5 w-3.5" /> Prestar

@@ -79,21 +79,74 @@ export default function ImageUploader({
 
     if (toAdd.length === 0) return;
 
-    // Create local previews immediately
+    // Create placeholder items with uploading=true
     const newImages: UploadedImage[] = toAdd.map(file => ({
       id: `img-${++imgCounter}`,
-      url: URL.createObjectURL(file),
+      url: '', // will be replaced by base64
       file,
-      uploading: false,
+      uploading: true,
     }));
 
-    setImages(prev => {
-      const updated = [...prev, ...newImages];
-      // Notify parent with all current URLs
-      const urls = updated.map(img => img.url);
-      onChange(urls);
-      return updated;
+    // Add placeholders to state immediately
+    setImages(prev => [...prev, ...newImages]);
+
+    // Process each file to base64 compressed
+    const promises = toAdd.map((file, idx) => {
+      const targetId = newImages[idx].id;
+      return new Promise<void>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const imgElement = new Image();
+          imgElement.src = reader.result as string;
+          imgElement.onload = () => {
+            const canvas = document.createElement('canvas');
+            const max_size = 600; // slightly higher quality for projects/tasks
+            let width = imgElement.width;
+            let height = imgElement.height;
+            if (width > height) {
+              if (width > max_size) {
+                height *= max_size / width;
+                width = max_size;
+              }
+            } else {
+              if (height > max_size) {
+                width *= max_size / height;
+                height = max_size;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(imgElement, 0, 0, width, height);
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
+
+            setImages(prev => {
+              const updated = prev.map(img => {
+                if (img.id === targetId) {
+                  return { ...img, url: compressedBase64, uploading: false };
+                }
+                return img;
+              });
+              const urls = updated.filter(img => !img.uploading).map(img => img.url);
+              setTimeout(() => onChange(urls), 0);
+              return updated;
+            });
+            resolve();
+          };
+          imgElement.onerror = () => {
+            setImages(prev => prev.filter(img => img.id !== targetId));
+            resolve();
+          };
+        };
+        reader.onerror = () => {
+          setImages(prev => prev.filter(img => img.id !== targetId));
+          resolve();
+        };
+        reader.readAsDataURL(file);
+      });
     });
+
+    await Promise.all(promises);
   }, [images.length, limit, maxSizeMB, onChange]);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,10 +173,11 @@ export default function ImageUploader({
   const removeImage = (id: string) => {
     setImages(prev => {
       const updated = prev.filter(img => img.id !== id);
-      // Revoke object URL to free memory
       const removed = prev.find(img => img.id === id);
-      if (removed?.file) URL.revokeObjectURL(removed.url);
-      onChange(updated.map(img => img.url));
+      if (removed?.file && removed.url.startsWith('blob:')) {
+        URL.revokeObjectURL(removed.url);
+      }
+      setTimeout(() => onChange(updated.map(img => img.url)), 0);
       return updated;
     });
   };

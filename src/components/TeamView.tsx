@@ -157,7 +157,7 @@ export default function TeamView({
         <button
           onClick={handleOpenAddForm}
           className="bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs py-2.5 px-4 rounded-lg flex items-center gap-1.5 transition shadow-xs cursor-pointer"
-          id="btn-new-worker"
+          id="btn-add-worker"
         >
           <UserPlus className="h-4 w-4" /> Registrar Trabajador
         </button>
@@ -262,7 +262,7 @@ export default function TeamView({
           </div>
 
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4" id="worker-form">
-            <div>
+            <div id="worker-form-name">
               <label className="block text-xs font-semibold text-stone-700 mb-1">Nombre Completo *</label>
               <input
                 required
@@ -275,7 +275,7 @@ export default function TeamView({
               />
             </div>
 
-            <div>
+            <div id="worker-form-role">
               <label className="block text-xs font-semibold text-stone-700 mb-1">Puesto de Trabajo *</label>
               <input
                 required
@@ -288,7 +288,7 @@ export default function TeamView({
               />
             </div>
 
-            <div>
+            <div id="worker-form-specialty">
               <label className="block text-xs font-semibold text-stone-700 mb-1">Especialidad o Habilidad Especial</label>
               <input
                 type="text"
@@ -300,28 +300,30 @@ export default function TeamView({
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1">Correo Electrónico</label>
-              <input
-                type="email"
-                placeholder="Ej. juan.perez@constructora.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="w-full bg-white border border-stone-250 rounded-lg px-3 py-2 text-sm focus:outline-hidden focus:border-orange-500 text-stone-900"
-                id="input-worker-email"
-              />
-            </div>
+            <div id="worker-form-contact" className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">Correo Electrónico</label>
+                <input
+                  type="email"
+                  placeholder="Ej. juan.perez@constructora.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="w-full bg-white border border-stone-250 rounded-lg px-3 py-2 text-sm focus:outline-hidden focus:border-orange-500 text-stone-900"
+                  id="input-worker-email"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-stone-700 mb-1">Número de Teléfono</label>
-              <input
-                type="text"
-                placeholder="Ej. +507 6001-2233"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                className="w-full bg-white border border-stone-250 rounded-lg px-3 py-2 text-sm focus:outline-hidden focus:border-orange-500 text-stone-900"
-                id="input-worker-phone"
-              />
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">Número de Teléfono</label>
+                <input
+                  type="text"
+                  placeholder="Ej. +507 6001-2233"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  className="w-full bg-white border border-stone-250 rounded-lg px-3 py-2 text-sm focus:outline-hidden focus:border-orange-500 text-stone-900"
+                  id="input-worker-phone"
+                />
+              </div>
             </div>
 
             <div>
@@ -342,7 +344,7 @@ export default function TeamView({
               <button
                 type="submit"
                 className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-5 py-2.5 rounded-lg transition shadow-xs cursor-pointer"
-                id="btn-save-worker"
+                id="worker-form-submit"
               >
                 {editingWorker ? 'Guardar Datos' : 'Registrar Trabajador'}
               </button>

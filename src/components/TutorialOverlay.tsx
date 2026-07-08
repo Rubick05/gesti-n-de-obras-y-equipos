@@ -10,8 +10,12 @@ const PADDING = 12; // px around the spotlight element
 
 function getTargetRect(target: string): Rect | null {
   const selectors = target.split(',').map(s => s.trim());
-  for (const sel of selectors) {
+  const isMobile = window.innerWidth < 768;
+  for (let sel of selectors) {
     try {
+      if (isMobile && sel.includes('btn-nav-desktop')) {
+        sel = '#btn-toggle-mobile-menu';
+      }
       const el = document.querySelector(sel);
       if (el) {
         const r = el.getBoundingClientRect();

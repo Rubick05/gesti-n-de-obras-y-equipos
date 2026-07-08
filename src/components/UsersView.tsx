@@ -356,7 +356,7 @@ export default function UsersView({ workers }: UsersViewProps) {
                 <div>
                   {/* Badge de Rol */}
                   <div className="flex justify-between items-start mb-3">
-                    <span className={`text-[9.5px] font-bold uppercase px-2 py-0.5 rounded border ${
+                    <span className={`user-role-badge text-[9.5px] font-bold uppercase px-2 py-0.5 rounded border ${
                       user.role === 'admin'
                         ? 'bg-orange-50 text-orange-700 border-orange-200'
                         : 'bg-sky-50 text-sky-700 border-sky-200'

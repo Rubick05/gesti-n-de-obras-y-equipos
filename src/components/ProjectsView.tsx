@@ -600,6 +600,7 @@ export default function ProjectsView({
                           <Users className="h-4 w-4 text-stone-500" /> Grupos de Trabajo
                         </h4>
                         <button
+                          id="btn-add-group"
                           onClick={() => {
                             setGroupName('');
                             setGroupLeaderId('');
@@ -612,7 +613,7 @@ export default function ProjectsView({
                           <Plus className="h-3 w-3" /> Agregar
                         </button>
                       </div>
-
+ 
                       {/* Formulario de grupo inline */}
                       {showGroupFormId === project.id && (
                         <div className="bg-stone-100/80 p-3.5 rounded-lg border border-stone-250 space-y-3 animate-fadeIn text-xs">
@@ -620,7 +621,7 @@ export default function ProjectsView({
                             {editingGroup ? 'Editar Grupo' : 'Nuevo Grupo de Trabajo'}
                           </p>
                           <div className="space-y-2">
-                            <div>
+                            <div id="group-form-name">
                               <label className="block text-[10px] font-bold text-stone-500 mb-0.5">Nombre del Grupo</label>
                               <input
                                 type="text"
@@ -630,7 +631,7 @@ export default function ProjectsView({
                                 className="w-full bg-white border border-stone-300 rounded px-2.5 py-1.5 text-xs focus:outline-hidden focus:border-orange-500 text-stone-900"
                               />
                             </div>
-                            <div>
+                            <div id="group-form-leader">
                               <label className="block text-[10px] font-bold text-stone-500 mb-0.5">Responsable / Líder</label>
                               <select
                                 value={groupLeaderId}
@@ -643,7 +644,7 @@ export default function ProjectsView({
                                 ))}
                               </select>
                             </div>
-                            <div>
+                            <div id="group-form-members">
                               <label className="block text-[10px] font-bold text-stone-500 mb-1">Miembros del Grupo</label>
                               <div className="max-h-24 overflow-y-auto border border-stone-300 rounded bg-white p-1.5 space-y-1">
                                 {workers.map(w => {
