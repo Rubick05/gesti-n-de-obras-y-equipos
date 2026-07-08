@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginView from './components/LoginView';
 import Layout from './components/Layout';
@@ -46,7 +46,7 @@ function LoadingScreen() {
 }
 
 // ── Admin App (full access) ────────────────────────────────────────────────
-function AdminApp() {
+function AdminApp({ theme, setTheme }: { theme: 'light' | 'dark', setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>> }) {
   const [activeView, setActiveView] = useState<AdminView>('dashboard');
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const { profile } = useAuth();
@@ -199,7 +199,7 @@ function AdminApp() {
 
   return (
     <>
-      <Layout activeView={activeView} onNavigate={setActiveView}>
+      <Layout activeView={activeView} onNavigate={setActiveView} theme={theme} setTheme={setTheme}>
         {activeView === 'dashboard' && (
           <DashboardView
             projects={projects} workers={workers} tasks={tasks}
@@ -270,7 +270,7 @@ function AdminApp() {
 }
 
 // ── Worker App (restricted portal) ────────────────────────────────────────
-function WorkerApp() {
+function WorkerApp({ theme, setTheme }: { theme: 'light' | 'dark', setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>> }) {
   const { profile } = useAuth();
   const workerId = profile?.worker_id ?? '';
 
@@ -326,6 +326,8 @@ function WorkerApp() {
         loans={loans}
         activeTab={workerTab}
         onTabChange={setWorkerTab}
+        theme={theme}
+        setTheme={setTheme}
       />
       <TutorialOverlay
         tutorialState={tutorialState}
@@ -351,11 +353,26 @@ function WorkerApp() {
 // ── Root with auth gate ────────────────────────────────────────────────────
 function AppInner() {
   const { session, profile, loading } = useAuth();
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('cv_theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('cv_theme', theme);
+  }, [theme]);
 
   if (loading) return <LoadingScreen />;
   if (!session || !profile) return <LoginView />;
-  if (profile.role === 'admin') return <AdminApp />;
-  return <WorkerApp />;
+  if (profile.role === 'admin') return <AdminApp theme={theme} setTheme={setTheme} />;
+  return <WorkerApp theme={theme} setTheme={setTheme} />;
 }
 
 export default function App() {

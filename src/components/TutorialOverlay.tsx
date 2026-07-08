@@ -149,34 +149,47 @@ function TutorialTooltip({
     const spotCenterX = spotLeft + rect.width / 2;
     const spotCenterY = spotTop + rect.height / 2;
 
-    // On mobile/tablet (vw < 768), avoid left/right positions entirely.
-    // Place tooltip top or bottom of the spotlight depending on where the spotlight is located.
     const isMobile = vw < 768;
-    let effectivePosition = position;
-    if (isMobile && (position === 'right' || position === 'left')) {
-      effectivePosition = spotCenterY > vh / 2 ? 'top' : 'bottom';
-    }
-
-    switch (effectivePosition) {
-      case 'bottom':
-        top = spotBottom + GAP;
-        left = Math.min(Math.max(spotCenterX - tw / 2, 8), vw - tw - 8);
-        break;
-      case 'top':
-        top = spotTop - th - GAP;
-        left = Math.min(Math.max(spotCenterX - tw / 2, 8), vw - tw - 8);
-        break;
-      case 'right':
-        top = Math.min(Math.max(spotCenterY - th / 2, 8), vh - th - 8);
-        left = Math.min(spotRight + GAP, vw - tw - 8);
-        break;
-      case 'left':
-        top = Math.min(Math.max(spotCenterY - th / 2, 8), vh - th - 8);
-        left = Math.max(spotLeft - tw - GAP, 8);
-        break;
-      default:
+    if (isMobile) {
+      left = (vw - tw) / 2;
+      if (rect) {
+        let effPos = position;
+        if (position === 'right' || position === 'left') {
+          effPos = spotCenterY > vh / 2 ? 'top' : 'bottom';
+        }
+        if (effPos === 'top') {
+          top = spotTop - th - GAP;
+          if (top < 8) top = spotBottom + GAP;
+        } else {
+          top = spotBottom + GAP;
+          if (top + th > vh - 8) top = spotTop - th - GAP;
+        }
+      } else {
         top = vh / 2 - th / 2;
-        left = vw / 2 - tw / 2;
+      }
+    } else {
+      let effectivePosition = position;
+      switch (effectivePosition) {
+        case 'bottom':
+          top = spotBottom + GAP;
+          left = Math.min(Math.max(spotCenterX - tw / 2, 8), vw - tw - 8);
+          break;
+        case 'top':
+          top = spotTop - th - GAP;
+          left = Math.min(Math.max(spotCenterX - tw / 2, 8), vw - tw - 8);
+          break;
+        case 'right':
+          top = Math.min(Math.max(spotCenterY - th / 2, 8), vh - th - 8);
+          left = Math.min(spotRight + GAP, vw - tw - 8);
+          break;
+        case 'left':
+          top = Math.min(Math.max(spotCenterY - th / 2, 8), vh - th - 8);
+          left = Math.max(spotLeft - tw - GAP, 8);
+          break;
+        default:
+          top = vh / 2 - th / 2;
+          left = vw / 2 - tw / 2;
+      }
     }
 
     // Keep in viewport with safe margin

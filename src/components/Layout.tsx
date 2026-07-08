@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   Building2, Users, CheckSquare, Wrench, LayoutDashboard,
-  HardHat, Menu, X, LogOut, Wallet, Shield, ChevronRight
+  HardHat, Menu, X, LogOut, Wallet, Shield, ChevronRight,
+  Sun, Moon
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -11,6 +12,8 @@ interface LayoutProps {
   activeView: AdminView;
   onNavigate: (view: AdminView) => void;
   children: React.ReactNode;
+  theme: 'light' | 'dark';
+  setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>>;
 }
 
 const ADMIN_MENU_ITEMS = [
@@ -30,7 +33,7 @@ function getInitials(name: string): string {
     : name.substring(0, 2).toUpperCase();
 }
 
-export default function Layout({ activeView, onNavigate, children }: LayoutProps) {
+export default function Layout({ activeView, onNavigate, children, theme, setTheme }: LayoutProps) {
   const { profile, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -62,13 +65,23 @@ export default function Layout({ activeView, onNavigate, children }: LayoutProps
             <span className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">Constructora</span>
           </div>
         </div>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-1.5 text-slate-500 hover:text-slate-900 transition rounded-lg hover:bg-slate-100"
-          id="btn-toggle-mobile-menu"
-        >
-          {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+            id="btn-theme-toggle-mobile"
+            title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-500" /> : <Moon className="h-5 w-5" />}
+          </button>
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-1.5 text-slate-500 hover:text-slate-900 transition rounded-lg hover:bg-slate-100"
+            id="btn-toggle-mobile-menu"
+          >
+            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
+        </div>
       </header>
 
       {/* ── MENÚ MÓVIL DESPLEGABLE ─────────────────────────────── */}
@@ -209,6 +222,14 @@ export default function Layout({ activeView, onNavigate, children }: LayoutProps
               <ChevronRight className="h-3 w-3 text-slate-300 shrink-0" />
             </div>
           )}
+          <button
+            onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+            className="w-full flex items-center gap-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-2.5 rounded-xl transition cursor-pointer"
+            id="btn-theme-toggle"
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-slate-400" />}
+            <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}</span>
+          </button>
           <button
             onClick={handleLogout}
             disabled={loggingOut}

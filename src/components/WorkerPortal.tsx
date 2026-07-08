@@ -3,7 +3,8 @@ import { Task, Project, Worker, TaskStatus, Tool, Loan, ToolCategory, ToolStatus
 import {
   CheckCircle2, Circle, Clock, AlertTriangle, Edit3, Save, X,
   User, Phone, Mail, Award, Briefcase, Star, TrendingUp,
-  ChevronRight, Loader2, LogOut, Users, Wrench, Search, Filter, AlertCircle, ImageIcon
+  ChevronRight, Loader2, LogOut, Users, Wrench, Search, Filter, AlertCircle, ImageIcon,
+  Sun, Moon
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWorkerGroups } from '../hooks/useWorkerGroups';
@@ -19,6 +20,8 @@ interface WorkerPortalProps {
   loans: Loan[];
   activeTab?: 'tasks' | 'profile' | 'groups' | 'inventory';
   onTabChange?: (tab: 'tasks' | 'profile' | 'groups' | 'inventory') => void;
+  theme: 'light' | 'dark';
+  setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>>;
 }
 
 const PRIORITY_CONFIG: Record<Task['priority'], { label: string; badge: string; dot: string }> = {
@@ -37,7 +40,7 @@ const STATUS_COLUMNS: { status: TaskStatus; label: string; color: string; icon: 
 export default function WorkerPortal(props: WorkerPortalProps) {
   const {
     myTasks, projects, workers, myWorkerData, onUpdateTaskStatus, onUpdateWorker, tools, loans,
-    activeTab: propsActiveTab, onTabChange
+    activeTab: propsActiveTab, onTabChange, theme, setTheme
   } = props;
   const { profile, updateProfile, logout } = useAuth();
   const { groups, loading: groupsLoading } = useWorkerGroups();
@@ -126,6 +129,15 @@ export default function WorkerPortal(props: WorkerPortalProps) {
           <div className="flex-1">
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Portal Personal</span>
+              <button
+                onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[10px] font-mono py-0.5 px-2 rounded flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                id="btn-worker-theme-toggle"
+                title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+              >
+                {theme === 'dark' ? <Sun className="h-3 w-3 text-amber-500" /> : <Moon className="h-3 w-3" />}
+                <span>{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
+              </button>
               <button
                 onClick={logout}
                 className="bg-slate-800 hover:bg-red-950 hover:text-red-300 border border-slate-700 text-slate-350 text-[10px] font-mono py-0.5 px-2 rounded flex items-center gap-1 transition cursor-pointer shadow-2xs"
