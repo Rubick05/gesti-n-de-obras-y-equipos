@@ -298,21 +298,6 @@ function WorkerApp({ theme, setTheme }: { theme: 'light' | 'dark', setTheme: Rea
     }
   });
 
-  const voiceAssistant = useVoiceAssistant({
-    onUpdateWorker: updateWorker,
-    onUpdateTaskStatus: updateTaskStatus,
-    onNavigate: (view) => {
-      if (view === 'tasks' || view === 'profile' || view === 'groups' || view === 'inventory') {
-        setWorkerTab(view);
-      }
-    },
-    tasks,
-    projects,
-    workers,
-    currentWorkerId: workerId,
-    role: 'worker',
-  });
-
   return (
     <>
       <WorkerPortal
@@ -338,13 +323,6 @@ function WorkerApp({ theme, setTheme }: { theme: 'light' | 'dark', setTheme: Rea
         onClosePicker={closePicker}
         onStartTutorial={startTutorial}
         role="worker"
-      />
-      <VoiceAssistant
-        state={voiceAssistant.state}
-        onClose={voiceAssistant.close}
-        onToggleListening={voiceAssistant.toggleListening}
-        onSubmitText={voiceAssistant.submitText}
-        onOpen={voiceAssistant.open}
       />
     </>
   );

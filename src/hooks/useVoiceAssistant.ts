@@ -308,26 +308,35 @@ async function callGeminiAPI(question: string): Promise<string> {
   if (!apiKey.startsWith('AIzaSy') && !apiKey.startsWith('AQ.')) {
     return `La clave de API de Gemini configurada ("${apiKey.substring(0, 8)}...") parece inválida. Recuerda que las claves de Google AI Studio comienzan con "AIzaSy" o "AQ.". Obtén una clave gratis en https://aistudio.google.com/app/apikey`;
   }
-  try {
+
+  const systemPrompt = "Eres un asistente inteligente para una aplicación móvil y web de construcción y obras. Eres exclusivo para el administrador. Puedes responder a cualquier requerimiento que tenga el administrador, incluyendo consultas sobre el clima, búsquedas en internet, información relevante de obras, redacción de correos, o cualquier otra duda general. Responde en español de forma concisa, útil y directa (máximo 3 oraciones).";
+
+  const fetchWithSearch = async (useSearch: boolean) => {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
+    const payload: any = {
+      contents: [{
+        parts: [{ text: question }]
+      }],
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      }
+    };
+    if (useSearch) {
+      payload.tools = [{ googleSearch: {} }];
+    }
+    return fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: question
-          }]
-        }],
-        systemInstruction: {
-          parts: [{
-            text: "Eres un asistente inteligente para una aplicación móvil y web de construcción y obras. Responde en español de forma muy concisa, directa y amable (máximo dos oraciones)."
-          }]
-        }
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
+  };
+
+  try {
+    let response = await fetchWithSearch(true);
+    if (!response.ok) {
+      console.warn(`Gemini Search Grounding failed (Status: ${response.status}). Retrying without search tools...`);
+      response = await fetchWithSearch(false);
+    }
     if (!response.ok) {
       throw new Error(`Gemini API error status: ${response.status}`);
     }
